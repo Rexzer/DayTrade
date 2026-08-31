@@ -39,6 +39,8 @@ Interactive docs (OpenAPI/Swagger) are served at `/docs`.
 - `GET /api/live/status | log`
 - `GET /api/live/history` — durably-persisted signals / orders / trades
 - `POST /api/live/confirm | enable | disable`
+- `POST /api/live/dry-run` `{ "enabled": true|false }` — ON validates the full
+  chain (incl. broker order_check) but NEVER sends an order (defaults ON)
 - `POST /api/live/kill | kill/clear`
 - `POST /api/live/risk | risk/reset`
 - `POST /api/live/execute` — execute the best current confirmed signal (manual)

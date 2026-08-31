@@ -32,8 +32,11 @@ class LiveTradingService:
         # Authorization starts DISABLED every process start (restart safety).
         self.authorization = LiveAuthorization(config_enabled=settings.live_execution_enabled)
         self.risk = LiveRiskEngine(RiskSettings())
+        # Dry-run defaults ON: the first real-account run validates the full
+        # chain (incl. the broker's order_check) but places ZERO orders until
+        # the operator explicitly turns it off.
         self.coordinator = ExecutionCoordinator(
-            get_mt5_service().provider, self.risk, self.authorization
+            get_mt5_service().provider, self.risk, self.authorization, dry_run=True
         )
 
     # ------------------------------------------------------------- status
@@ -45,6 +48,7 @@ class LiveTradingService:
             "risk_state": self.risk.state.to_dict(),
             "broker_connected": mt5.provider.is_connected(),
             "symbol": self.symbol,
+            "dry_run": self.coordinator.dry_run,
             "auto_execute": False,  # the platform NEVER auto-executes
             "note": (
                 "Live execution is user-initiated and gated by the independent "
@@ -74,6 +78,11 @@ class LiveTradingService:
         self.authorization.disable()
         logger.info("Live trading disarmed by user.")
         return {"armed": False, "authorization": self.authorization.status()}
+
+    def set_dry_run(self, enabled: bool) -> dict:
+        self.coordinator.dry_run = bool(enabled)
+        logger.info("Dry-run mode set", extra={"context": {"dry_run": self.coordinator.dry_run}})
+        return {"dry_run": self.coordinator.dry_run}
 
     # ------------------------------------------------------------- kill switch
     def kill(self, cancel_pending: bool = False, close_positions: bool = False) -> dict:

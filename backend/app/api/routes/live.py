@@ -44,6 +44,16 @@ def disable() -> dict:
     return get_live_service().disable()
 
 
+class DryRunRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/dry-run")
+def set_dry_run(req: DryRunRequest, _op: str = Depends(require_operator)) -> dict:
+    """Toggle dry-run. ON = validate the full chain but NEVER send an order."""
+    return get_live_service().set_dry_run(req.enabled)
+
+
 class KillRequest(BaseModel):
     cancel_pending: bool = False
     close_positions: bool = False

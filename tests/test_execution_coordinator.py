@@ -143,3 +143,23 @@ def test_records_trade_opened_on_success():
     assert coord.risk.state.trades_today == 0
     coord.execute_signal(SIGNAL, _ctx(), spec)
     assert coord.risk.state.trades_today == 1
+
+
+def test_dry_run_validates_but_never_sends():
+    coord, provider, spec = _setup()
+    coord.dry_run = True
+    out = coord.execute_signal(SIGNAL, _ctx(now_epoch=1000.0), spec)
+    assert out.executed is False and out.stage == "dry_run"
+    assert out.risk_decision.approved is True  # risk + validation still ran
+    assert provider._client.last_order_request is None  # order was NEVER sent
+    assert coord.risk.state.trades_today == 0  # no trade recorded
+    # No dedup mark in dry-run, so it can be re-run immediately.
+    out2 = coord.execute_signal(SIGNAL, _ctx(now_epoch=1005.0), spec)
+    assert out2.stage == "dry_run"
+
+
+def test_dry_run_off_sends_order():
+    coord, provider, spec = _setup()
+    coord.dry_run = False
+    out = coord.execute_signal(SIGNAL, _ctx(), spec)
+    assert out.executed is True and provider._client.last_order_request is not None

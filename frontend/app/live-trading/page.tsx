@@ -130,6 +130,29 @@ export default function LiveTradingPage() {
         </div>
       </div>
 
+      {/* Dry-run toggle — ON by default; validates the chain but never sends. */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h3 style={{ marginBottom: 4 }}>Dry-run mode</h3>
+            <div className="muted" style={{ fontSize: 12 }}>
+              ON = run the full pipeline incl. the broker&apos;s order-check, but
+              place ZERO orders. Use this for your first real-account test.
+            </div>
+          </div>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span className={`badge ${status?.dry_run ? "gold" : "red"}`}>
+              {status?.dry_run ? "DRY-RUN ON" : "LIVE SEND"}
+            </span>
+            <input
+              type="checkbox"
+              checked={!!status?.dry_run}
+              onChange={(e) => post("/dry-run", { enabled: e.target.checked })}
+            />
+          </label>
+        </div>
+      </div>
+
       {/* Emergency stop — always visible and prominent. */}
       <button
         onClick={() => post("/kill", { cancel_pending: true, close_positions: true })}
