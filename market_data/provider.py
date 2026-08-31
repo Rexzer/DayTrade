@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from market_data.tick import Tick
 
 # Backwards-compatible StrEnum (Python 3.10 lacks enum.StrEnum).
 if sys.version_info >= (3, 11):
@@ -91,17 +96,53 @@ class Candle:
         }
 
 
+@dataclass(frozen=True)
+class SymbolSpec:
+    """Broker-specific instrument specification.
+
+    Different brokers name the same instrument differently (XAUUSD, XAUUSDm,
+    GOLD, XAUUSD.a, ...). ``canonical`` is the platform's internal name;
+    ``broker_symbol`` is what the provider actually expects. Contract details
+    (digits, tick size, point value) are used later for spread/sizing and are
+    never assumed to be identical across brokers.
+    """
+
+    canonical: str = "XAUUSD"
+    broker_symbol: str = "XAUUSD"
+    digits: int = 2
+    point: float = 0.01
+    description: str = "Gold vs US Dollar"
+
+    def to_dict(self) -> dict:
+        return {
+            "canonical": self.canonical,
+            "broker_symbol": self.broker_symbol,
+            "digits": self.digits,
+            "point": self.point,
+            "description": self.description,
+        }
+
+
+# Callback signatures for streaming subscriptions.
+TickCallback = Callable[["Tick"], None]
+CandleCallback = Callable[[Candle], None]
+
+
 class MarketDataProvider(ABC):
     """Abstract base class every concrete data provider implements.
 
-    Concrete providers are added in later phases. Keeping the surface small
-    and explicit means the strategy/backtesting layers depend only on this
-    interface, not on any specific vendor.
+    The interface is intentionally provider-independent so brokers/vendors can
+    be swapped without touching the strategy, storage or UI layers. The four
+    ``@abstractmethod`` members below form the minimal contract; the streaming
+    lifecycle methods (``connect``/``subscribe_ticks``/...) have safe defaults
+    so simple providers (like the null provider) remain valid without
+    implementing them.
     """
 
     #: Human-readable provider name shown in the Connections UI.
     name: str = "abstract"
 
+    # --- Minimal required contract -------------------------------------------
     @abstractmethod
     def is_connected(self) -> bool:
         """Return whether the provider currently has a live connection."""
@@ -117,3 +158,41 @@ class MarketDataProvider(ABC):
     @abstractmethod
     def supported_timeframes(self) -> list[Timeframe]:
         """Return the timeframes this provider can serve."""
+
+    # --- Streaming lifecycle (optional; safe defaults) -----------------------
+    def connect(self) -> bool:
+        """Establish a connection. Default: no-op returning current state."""
+        return self.is_connected()
+
+    def disconnect(self) -> None:  # noqa: B027 - intentional optional no-op hook
+        """Tear down the connection. Default: no-op."""
+
+    def get_current_price(self, symbol: str) -> PriceSnapshot:
+        """Alias for :meth:`get_snapshot` (kept for interface symmetry)."""
+        return self.get_snapshot(symbol)
+
+    def get_tick(self, symbol: str) -> Tick | None:
+        """Return the most recent tick, or ``None`` if none/disconnected."""
+        return None
+
+    def get_historical_candles(
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        limit: int = 500,
+        end_epoch: float | None = None,
+    ) -> list[Candle]:
+        """Return historical candles up to ``end_epoch`` (for backfill/load)."""
+        return self.get_candles(symbol, timeframe, limit=limit)
+
+    def subscribe_ticks(self, symbol: str) -> Iterator[Tick]:
+        """Yield ticks as they arrive. Default: empty stream (no data)."""
+        return iter(())
+
+    def subscribe_candles(self, symbol: str, timeframe: Timeframe) -> Iterator[Candle]:
+        """Yield closed candles as they form. Default: empty stream."""
+        return iter(())
+
+    def symbol_spec(self, symbol: str) -> SymbolSpec:
+        """Return the contract spec for ``symbol`` (default XAUUSD 2-digit)."""
+        return SymbolSpec(canonical=symbol, broker_symbol=symbol)

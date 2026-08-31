@@ -9,11 +9,22 @@ WebSocket infrastructure, settings, trading-mode selector (analysis-only
 active; paper/live locked), security baseline, tests, docs.
 **No live trading. No fake data.**
 
-## Phase 2 — Analysis
-Technical indicators (EMA/SMA/RSI/MACD/ATR/Bollinger/VWAP/ADX), candle
-construction, market-regime detection, the built-in strategy families, signal
-generation with full reasoning, and multi-timeframe analysis feeding the
-dashboard. Real market-data provider wired into the abstraction.
+## Phase 2 — Real-time Market Data ✅ (this deliverable)
+Provider-independent market-data layer: tick model, UTC-aligned candle
+aggregation (duplicate/out-of-order/missing handling + gap detection), feed
+health with LIVE/DELAYED/STALE/DISCONNECTED classification and signal gating,
+a reconnection state machine with exponential backoff and backfill, broker
+symbol mapping (XAUUSD/XAUUSDm/GOLD/XAUUSD.a/…), PostgreSQL candle storage with
+duplicate prevention, a `/ws/market` real-time WebSocket, and a chart wired to
+the live feed. Ships a clearly-labelled simulated provider for offline
+development and a generic REST provider scaffold for real feeds.
+**Market data only — no trading.**
+
+## Phase 2b / later — Analysis
+Technical indicators (EMA/SMA/RSI/MACD/ATR/Bollinger/VWAP/ADX), market-regime
+detection, the built-in strategy families, and signal generation with full
+reasoning feeding the dashboard. (Signal generation consumes the Phase 2 feed
+health so it halts automatically on stale data.)
 
 ## Phase 3 — Backtesting
 Historical data ingestion, backtesting engine, performance metrics, walk-forward

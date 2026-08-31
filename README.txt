@@ -1,9 +1,24 @@
 ===============================================================================
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
-Phase 1 — Foundation (ANALYSIS ONLY)
+Phase 2 — Real-time Market Data (ANALYSIS ONLY)
 ===============================================================================
 
-*** LIVE TRADING IS NOT IMPLEMENTED IN PHASE 1. ***
+*** LIVE TRADING IS NOT IMPLEMENTED. PHASE 2 IS MARKET DATA ONLY. ***
+*** No orders can be sent and no execution logic is connected. ***
+
+Phase 2 adds a robust, provider-independent real-time market-data engine:
+tick ingestion, UTC-aligned candle aggregation (handling duplicate/out-of-
+order/missing ticks), LIVE/DELAYED/STALE/DISCONNECTED health with signal
+gating, reconnection + backfill, broker-symbol mapping, PostgreSQL candle
+storage, a /ws/market WebSocket, and a chart wired to the live feed.
+
+Data sources:
+  * MARKET_DATA_PROVIDER=none       -> fully disconnected (default).
+  * MARKET_DATA_PROVIDER=simulated  -> synthetic feed for OFFLINE DEV ONLY;
+                                       always labelled source="simulated" and
+                                       NOT real market data.
+  * MARKET_DATA_PROVIDER=rest       -> generic HTTP JSON quote poller (real;
+                                       requires network + endpoint/API key).
 
 This build is a foundation only. It runs in ANALYSIS-ONLY mode. There is no
 automated order execution, no paper trading, and no connection to a real-money
@@ -126,19 +141,50 @@ The core-logic test suite is dependency-free and runs offline:
 It covers: trading-mode locks (LIVE TRADING CANNOT BE ACTIVATED),
 connection/data status classification, the disabled execution engine, the
 null market-data provider, risk sizing/validation, security (password hashing
-and JWT), and configuration safety invariants.
+and JWT), configuration safety invariants, and the Phase 2 market-data engine
+(tick processing, candle construction, duplicate/out-of-order/missing/gap
+handling, UTC timeframe bucketing, stale detection + signal gating, the
+reconnection state machine, broker symbol mapping, and the simulated provider).
 
 (Full API/integration tests that need FastAPI/SQLAlchemy run once
 backend/requirements.txt is installed in a networked environment.)
 
 
 -------------------------------------------------------------------------------
-8. MARKET-DATA SETUP
+8. MARKET-DATA SETUP (PHASE 2)
 -------------------------------------------------------------------------------
-Phase 1 uses NullMarketDataProvider — it reports "disconnected" and returns no
-prices. A real provider is added in Phase 2 via the market_data abstraction,
-so no application code outside market_data/ needs to change. The system will
-never silently substitute stale data for live data.
+Select a provider via MARKET_DATA_PROVIDER in .env:
+
+  none       Default. NullMarketDataProvider: disconnected, no prices.
+
+  simulated  A deterministic synthetic feed for offline development. Every
+             tick/snapshot is tagged source="simulated" and the UI shows a
+             clear "SIMULATED FEED" warning. This is NOT real market data and
+             must never be used for real decisions. Useful to exercise the
+             chart, candles, WebSocket, stale-detection and reconnection.
+
+  rest       A generic HTTP JSON quote poller (market_data/providers/
+             rest_polling.py). Point RestProviderConfig.url at a real quote
+             endpoint and map the bid/ask/last JSON paths. Requires network
+             access and (usually) an API key supplied via environment.
+
+Other market-data env vars:
+  MARKET_DATA_SYMBOL            broker symbol (XAUUSD, XAUUSDm, GOLD, XAUUSD.a)
+  MARKET_TICK_INTERVAL_SECONDS  poll/generate interval
+  DATA_DELAYED_AFTER_SECONDS    LIVE -> DELAYED threshold
+  DATA_STALE_AFTER_SECONDS      DELAYED -> STALE threshold (halts signals)
+  MARKET_HISTORY_CANDLES        candles seeded per timeframe on connect
+
+Behaviour guarantees:
+  * Timestamps are stored/aggregated in UTC.
+  * Candles are unique per (symbol, timeframe, open_time) — no duplicates.
+  * On disconnect: detect -> notify frontend -> reconnect w/ backoff ->
+    backfill missed candles -> resume LIVE. Never resumes silently with gaps.
+  * When data is STALE/DISCONNECTED, downstream signal generation is halted
+    and the UI shows "MARKET DATA STALE". Stale data is never shown as live.
+
+NOTE ON OFFLINE ENVIRONMENTS: connecting a real feed requires network access.
+Use MARKET_DATA_PROVIDER=simulated to see the full pipeline without a network.
 
 
 -------------------------------------------------------------------------------
@@ -220,10 +266,12 @@ It is already disabled and cannot be enabled in Phase 1. The safeguards:
 
 
 -------------------------------------------------------------------------------
-17. CURRENT LIMITATIONS (PHASE 1)
+17. CURRENT LIMITATIONS (PHASE 2)
 -------------------------------------------------------------------------------
-  * No real market data, indicators, signals or regime detection yet.
+  * No indicators, signals, strategies or regime detection yet (next phase).
   * No backtesting, paper trading, MetaTrader, or live execution.
+  * The included real provider is a generic REST poller; vendor-specific and
+    broker/MT5 feeds arrive in later phases.
   * Only Dashboard and Settings pages are interactive; other pages are listed
     but marked as coming in later phases.
 
