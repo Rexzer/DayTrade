@@ -27,6 +27,37 @@ class PaperTradingService:
         self.engine = PaperTradingEngine(PaperAccountConfig())
         self.active = False
         self._wired = False
+        self._persist_cursor = 0
+
+    def _flush_to_store(self) -> None:
+        """Persist any newly-closed paper trades durably (best-effort)."""
+        closed = self.engine.account.closed_trades
+        if len(closed) <= self._persist_cursor:
+            return
+        try:
+            from backend.app.persistence import StoredTrade, get_store
+
+            store = get_store()
+            for t in closed[self._persist_cursor :]:
+                store.save_trade(
+                    StoredTrade(
+                        strategy_key=t.strategy_key,
+                        symbol="XAUUSD",
+                        side=t.direction,
+                        volume_lots=t.lots,
+                        entry_price=t.entry_price,
+                        exit_price=t.exit_price,
+                        pnl=t.pnl,
+                        exit_reason=t.exit_reason,
+                        regime=t.regime,
+                        mode="paper",
+                        opened_epoch=t.opened_epoch,
+                        closed_epoch=t.closed_epoch,
+                    )
+                )
+            self._persist_cursor = len(closed)
+        except Exception:  # noqa: BLE001 - persistence must not break paper trading
+            pass
 
     # ------------------------------------------------------------- wiring
     def wire(self) -> None:
@@ -44,6 +75,8 @@ class PaperTradingService:
         if bid is None or ask is None:
             return
         self.engine.on_price(float(bid), float(ask), float(tick.timestamp_epoch))
+        # SL/TP closes happen on price updates — persist any new closed trades.
+        self._flush_to_store()
 
     def _on_candle(self, timeframe: str, candle) -> None:
         # Auto-trade only on the primary timeframe close, and only when active.
@@ -102,14 +135,17 @@ class PaperTradingService:
 
     def reset(self) -> dict:
         self.engine.reset()
+        self._persist_cursor = 0
         return self.engine.state()
 
     def close_position(self, position_id: str) -> dict:
         ok = self.engine.close_position(position_id)
+        self._flush_to_store()
         return {"closed": ok, "position_id": position_id}
 
     def close_all(self) -> dict:
         n = self.engine.close_all()
+        self._flush_to_store()
         return {"closed_count": n}
 
     # ------------------------------------------------------------- views

@@ -110,6 +110,12 @@ class Settings:
         return os.getenv("MT5_PASSWORD") or None
 
     @property
+    def live_api_token(self) -> str | None:
+        # Shared operator secret guarding the dangerous live-trading endpoints.
+        # Read from env only; never stored on the instance, logged or returned.
+        return os.getenv("LIVE_API_TOKEN") or None
+
+    @property
     def is_production(self) -> bool:
         return self.app_env == "production"
 

@@ -53,13 +53,27 @@ export default function LiveTradingPage() {
     return () => clearInterval(id);
   }, []);
 
+  const [opToken, setOpToken] = useState("");
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("operatorToken") : null;
+    if (saved) setOpToken(saved);
+  }, []);
+
+  function saveToken(v: string) {
+    setOpToken(v);
+    if (typeof window !== "undefined") localStorage.setItem("operatorToken", v);
+  }
+
   async function post(path: string, body?: unknown) {
     setBusy(true);
     setMsg(null);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (opToken) headers["X-Operator-Token"] = opToken;
       const res = await fetch(`${API_BASE_URL}/api/live${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await res.json().catch(() => ({}));
@@ -91,6 +105,29 @@ export default function LiveTradingPage() {
         ⚠ WARNING — REAL MONEY TRADING. Orders placed here use real funds.
         Trading can result in losses. The platform never auto-executes; every
         live order is user-initiated and must pass the independent risk engine.
+      </div>
+
+      {/* Operator authorization token (required for arm/execute/confirm/risk). */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <h3>Operator token</h3>
+        <input
+          type="password"
+          value={opToken}
+          onChange={(e) => saveToken(e.target.value)}
+          placeholder="X-Operator-Token (matches backend LIVE_API_TOKEN)"
+          style={{
+            width: "100%",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+            borderRadius: 6,
+            padding: "8px 10px",
+          }}
+        />
+        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+          Required to arm/execute/configure. Stored only in this browser. Never
+          sent anywhere except this backend as a request header.
+        </div>
       </div>
 
       {/* Emergency stop — always visible and prominent. */}

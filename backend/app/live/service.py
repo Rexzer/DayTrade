@@ -169,7 +169,69 @@ class LiveTradingService:
         if best is None:
             return {"executed": False, "reason": "No confirmed setup to execute."}
         outcome = self.coordinator.execute_signal(best, ctx, spec)
+        self._persist(best, outcome)
         return outcome.to_dict()
+
+    def _persist(self, signal: dict, outcome) -> None:
+        """Durably record the evaluated signal and, if executed, the order."""
+        try:
+            import json
+
+            from backend.app.persistence import StoredOrder, StoredSignal, get_store
+
+            store = get_store()
+            store.save_signal(
+                StoredSignal(
+                    strategy_key=signal.get("strategy_key", "unknown"),
+                    symbol=signal.get("symbol", self.symbol),
+                    timeframe=signal.get("timeframe"),
+                    level=int(signal.get("level", 0)),
+                    direction=signal.get("direction"),
+                    regime=signal.get("regime"),
+                    confidence_score=signal.get("confidence_score"),
+                    reasoning=json.dumps(
+                        {
+                            "confirmations": signal.get("confirmations"),
+                            "missing": signal.get("missing_confirmations"),
+                            "invalidation": signal.get("invalidation"),
+                        }
+                    ),
+                )
+            )
+            if outcome.executed and outcome.order_result is not None:
+                sizing = outcome.risk_decision.sizing if outcome.risk_decision else None
+                store.save_order(
+                    StoredOrder(
+                        account_label="Live",
+                        symbol=signal.get("symbol", self.symbol),
+                        side="buy" if signal.get("direction") == "long" else "sell",
+                        order_type="market",
+                        volume_lots=sizing.lots if sizing else 0.0,
+                        price=outcome.order_result.price,
+                        stop_loss=signal.get("stop_loss"),
+                        take_profit=(signal.get("take_profits") or [None])[0],
+                        status="filled",
+                        mode="live",
+                        broker_order_id=outcome.order_result.order_id,
+                        retcode=outcome.order_result.retcode,
+                        comment=outcome.order_result.comment,
+                    )
+                )
+        except Exception as exc:  # noqa: BLE001 - persistence must never block execution
+            logger.debug("live persistence skipped", extra={"context": {"error": str(exc)}})
+
+    def history(self, limit: int = 100) -> dict:
+        try:
+            from backend.app.persistence import get_store
+
+            store = get_store()
+            return {
+                "signals": store.recent_signals(limit),
+                "orders": store.recent_orders(limit),
+                "trades": store.recent_trades(limit),
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {"error": str(exc), "signals": [], "orders": [], "trades": []}
 
     def execution_log(self, limit: int = 100) -> dict:
         return {"log": self.coordinator.log.recent(limit)}
