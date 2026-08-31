@@ -1,10 +1,28 @@
 ===============================================================================
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
-Phase 4 — Backtesting & Validation (ANALYSIS ONLY)
+Phase 5 — Paper Trading (SIMULATED — NO REAL ORDERS)
 ===============================================================================
 
-*** LIVE TRADING IS NOT IMPLEMENTED. NO ORDERS CAN BE SENT. ***
-*** Strategies classify setups only; backtests never place trades. ***
+*** LIVE TRADING IS NOT IMPLEMENTED. NO REAL ORDERS CAN BE SENT. ***
+*** Paper trading is fully SIMULATED on live data; live mode stays locked. ***
+
+Phase 5 adds a complete paper-trading environment that uses LIVE market data
+but simulates all execution:
+  * Virtual account: starting balance, risk per trade, max daily loss, max
+    open positions, max position size.
+  * Realistic simulated execution: market/limit/stop orders, stop-loss/
+    take-profit, partial exits, trailing stops, with adverse spread + slippage
+    + latency and commission (never assumes perfect fills).
+  * Risk limits enforced: per-trade sizing, max open positions, and a daily
+    loss limit that HALTS new entries (auto-clears next day or on reset).
+  * SIGNAL vs TRADE is explicit: every signal is journalled; a trade is only
+    opened if risk checks pass, otherwise the rejection reason is recorded.
+  * Paper positions, an auto trade journal, and per-strategy performance so
+    strategies can be compared.
+  * User controls: start / pause / resume / stop / reset / close position(s).
+
+The trading-mode selector now offers ANALYSIS ONLY and PAPER TRADING. LIVE
+TRADING remains locked and cannot be enabled.
 
 Phase 4 adds a professional, leakage-free backtesting & validation engine:
   * Event-driven backtester: signals act on the NEXT bar's open (no look-
@@ -181,7 +199,10 @@ multi-timeframe analysis, alerts, the signal engine's safety gating, and the
 user rule-builder); and the Phase 4 backtesting engine (execution costs, risk
 sizing, backtester mechanics for long/short entries/exits, metrics, drawdown,
 train/validation/OOS separation, walk-forward OOS-after-IS ordering, parameter
-sensitivity, Monte Carlo determinism, and a direct no-look-ahead slicing test).
+sensitivity, Monte Carlo determinism, and a direct no-look-ahead slicing test);
+and the Phase 5 paper-trading engine (simulated fills, SL/TP, trailing stops,
+partial exits, risk-based sizing, max-positions and daily-loss halts,
+signal-vs-trade rejection, controls, and per-strategy performance).
 
 (Full API/integration tests that need FastAPI/SQLAlchemy run once
 backend/requirements.txt is installed in a networked environment.)
@@ -249,7 +270,8 @@ All strategies are analysis-only and can never place an order.
   Backtesting  : IMPLEMENTED (Phase 4). Run from the Backtesting page or via
                  POST /api/backtest/run and /api/backtest/report. Leakage-free;
                  results are historical measurements, never guarantees.
-  Paper trading: reserved (later phase); mode is LOCKED in the UI.
+  Paper trading: IMPLEMENTED (Phase 5). Simulated execution on live data via
+                 the Paper Trading page or /api/paper/*. No real orders.
   Live trading : reserved (later phase); mode is LOCKED and cannot be enabled.
 
 
@@ -308,17 +330,16 @@ It is already disabled and cannot be enabled in Phase 1. The safeguards:
 
 
 -------------------------------------------------------------------------------
-17. CURRENT LIMITATIONS (PHASE 4)
+17. CURRENT LIMITATIONS (PHASE 5)
 -------------------------------------------------------------------------------
-  * Backtests use the historical candles the active provider can supply
-    (the labelled 'simulated' provider offline, or a real feed when connected).
-    Results are only as good as the input data.
-  * The backtester supports a single concurrent position and single primary
-    timeframe iteration (multi-timeframe strategies still get a correctly
-    sliced multi-tf context). Portfolio-level backtesting is future work.
-  * No paper trading, MetaTrader, or live execution yet.
-  * Dashboard, Settings, Strategies, Strategy Builder and Backtesting pages are
-    interactive; remaining pages arrive in later phases.
+  * Paper trading is fully simulated; there is still NO MetaTrader/broker
+    connection and NO real-money execution.
+  * Paper auto-trading acts on the primary timeframe (1h) close and the best
+    confirmed signal; fills use a mid-price model with adverse costs.
+  * Backtests/paper trading are only as good as the input data the active
+    provider supplies (labelled 'simulated' offline, or a real feed).
+  * Interactive pages: Dashboard, Settings, Strategies, Strategy Builder,
+    Backtesting and Paper Trading. Remaining pages arrive in later phases.
 
 
 -------------------------------------------------------------------------------

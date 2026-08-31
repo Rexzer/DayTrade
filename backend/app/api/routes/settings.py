@@ -29,9 +29,9 @@ def settings() -> dict:
         "general": {"app_name": s.app_name, "env": s.app_env, "phase": 1},
         "trading": {
             "mode": "analysis_only",
-            "paper_trading_enabled": False,
+            "paper_trading_enabled": True,
             "live_trading_enabled": False,
-            "message": "LIVE TRADING DISABLED",
+            "message": "PAPER TRADING ENABLED (simulated) · LIVE TRADING DISABLED",
         },
         "market_data": {"provider": "none", "connected": False},
         "notifications": {

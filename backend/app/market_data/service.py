@@ -65,6 +65,21 @@ class MarketDataService:
         self._running = False
         self._last_tick: Tick | None = None
 
+        # In-process listeners (e.g. the paper-trading engine). Kept synchronous
+        # and defensive so a listener error never breaks the data pipeline.
+        self._tick_listeners: list = []
+        self._candle_listeners: list = []
+
+    def add_tick_listener(self, callback) -> None:
+        """Register ``callback(tick)`` invoked on every accepted tick."""
+        if callback not in self._tick_listeners:
+            self._tick_listeners.append(callback)
+
+    def add_candle_listener(self, callback) -> None:
+        """Register ``callback(timeframe_str, candle)`` on each closed candle."""
+        if callback not in self._candle_listeners:
+            self._candle_listeners.append(callback)
+
     # --------------------------------------------------------------- provider
     def _build_provider(self) -> MarketDataProvider:
         kind = (self.settings.market_data_provider or "none").lower()
@@ -149,9 +164,20 @@ class MarketDataService:
             result = agg.add_tick(tick)
             if result.closed_candle is not None:
                 closed.append((tf, result.closed_candle))
+        # Notify in-process tick listeners (paper trading, etc.).
+        for cb in self._tick_listeners:
+            try:
+                cb(tick)
+            except Exception as exc:  # noqa: BLE001 - listener must not break the feed
+                logger.error("Tick listener error", extra={"context": {"error": str(exc)}})
         # Persist newly-closed candles (best-effort) and announce them.
         for tf, candle in closed:
             self._persist_candle(candle)
+            for cb in self._candle_listeners:
+                try:
+                    cb(tf.value, candle)
+                except Exception as exc:  # noqa: BLE001
+                    logger.error("Candle listener error", extra={"context": {"error": str(exc)}})
             await self.manager.broadcast(
                 {"type": "candle_closed", "timeframe": tf.value, "candle": candle.to_dict()}
             )

@@ -33,24 +33,24 @@ class ModeAvailability(str, Enum):
     LOCKED = "locked"
 
 
-# --- Phase 1 policy -----------------------------------------------------------
-# Only ANALYSIS_ONLY is enabled. The others are locked until later phases add
-# the required safeguards (paper execution, MT5 integration, risk engine,
-# kill switch, explicit user confirmations).
-_PHASE_1_AVAILABILITY: dict[TradingMode, ModeAvailability] = {
+# --- Phase availability policy ------------------------------------------------
+# ANALYSIS_ONLY and PAPER_TRADING are enabled (Phase 5 adds a simulated
+# execution layer that uses live data but can never place a real order).
+# LIVE_TRADING remains hard-locked until the later phase that adds a verified
+# broker connection, a working kill switch and explicit user confirmations.
+_DEFAULT_AVAILABILITY: dict[TradingMode, ModeAvailability] = {
     TradingMode.ANALYSIS_ONLY: ModeAvailability.ENABLED,
-    TradingMode.PAPER_TRADING: ModeAvailability.LOCKED,
+    TradingMode.PAPER_TRADING: ModeAvailability.ENABLED,
     TradingMode.LIVE_TRADING: ModeAvailability.LOCKED,
 }
 
+# Backwards-compatible alias (some callers/tests referenced the old name).
+_PHASE_1_AVAILABILITY = _DEFAULT_AVAILABILITY
+
 _LOCK_REASONS: dict[TradingMode, str] = {
-    TradingMode.PAPER_TRADING: (
-        "Paper trading is enabled in Phase 4 after the strategy engine, "
-        "backtesting and a simulated execution layer exist."
-    ),
     TradingMode.LIVE_TRADING: (
-        "Live trading is enabled only in Phase 6, and only after explicit "
-        "user confirmation, verified MetaTrader connection, configured risk "
+        "Live trading is enabled only in a later phase, and only after explicit "
+        "user confirmation, a verified MetaTrader connection, configured risk "
         "limits and a working kill switch."
     ),
 }

@@ -201,3 +201,61 @@ export interface AlertDTO {
   risk_reward: number | null;
   timestamp_epoch: number;
 }
+
+// ---- Paper trading (Phase 5) ----
+export interface PaperAccountSnapshot {
+  balance: number;
+  equity: number;
+  unrealized_pnl: number | null;
+  realized_daily_pnl: number;
+  daily_loss_pct: number;
+  drawdown_pct_now: number;
+  max_drawdown_pct: number;
+  open_positions: number;
+  paused: boolean;
+  halted: boolean;
+  halt_reason: string | null;
+  peak_equity: number;
+}
+
+export interface PaperPositionDTO {
+  id: string;
+  direction: string;
+  entry_price: number;
+  current_price: number | null;
+  lots: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  strategy_name: string;
+  unrealized_pnl: number | null;
+  realized_pnl: number;
+}
+
+export interface PaperState {
+  active: boolean;
+  account: PaperAccountSnapshot;
+  config: Record<string, unknown>;
+  last_price: { bid: number | null; ask: number | null; mid: number | null; epoch: number };
+  positions: PaperPositionDTO[];
+  pending_orders: unknown[];
+}
+
+export interface PaperJournalEntry {
+  epoch: number;
+  kind: string;
+  message: string;
+  strategy_name: string | null;
+}
+
+export interface StrategyPerfRow {
+  strategy_key: string;
+  strategy_name: string;
+  num_trades: number;
+  win_rate: number;
+  net_pnl: number;
+  profit_factor: number | null;
+  expectancy: number;
+  average_win: number;
+  average_loss: number;
+  max_drawdown_pct: number;
+}

@@ -1,7 +1,38 @@
 # Architecture — XAUUSD Trading Platform
 
-> Phase 4 (backtesting & validation). Analysis-only. No live trading, no
-> automated execution, no real broker connection.
+> Phase 5 (paper trading). Analysis + PAPER trading (simulated on live data).
+> No live trading, no automated real-money execution, no real broker connection.
+
+## Phase 5 addendum — Paper trading engine
+
+The `paper_trading/` package (pure Python) simulates a full trading account on
+LIVE data — it can never place a real order:
+
+```
+market ticks ──► PaperTradingEngine.on_price(bid, ask, epoch)
+                   │  process pending limit/stop orders
+                   │  manage positions: SL / TP / partial exit / trailing stop
+                   │  mark-to-market equity, drawdown, DAILY-LOSS halt
+                   ▼
+candle closes ─► (auto) evaluate strategies ─► on_signal(signal)
+                   │  SIGNAL is always journalled; a TRADE is only opened if
+                   │  risk checks pass (min level, max positions, sizing, geometry)
+                   │  otherwise a REJECTED entry explains why (signal != trade)
+                   ▼
+PaperAccount (account.py): balance, positions, closed trades, daily/drawdown
+CostModel (execution.py): adverse spread + slippage + latency, commission
+PaperJournal (journal.py) · performance.py (per-strategy comparison)
+```
+
+The trading-mode state machine now enables **PAPER_TRADING**; **LIVE_TRADING
+remains hard-locked**. Backend: `backend/app/paper_trading/service.py` registers
+tick/candle listeners on the market service and auto-trades confirmed setups
+only while ACTIVE. Endpoints under `/api/paper/*` (state, performance, trades,
+journal, start/pause/resume/stop/reset/close). Nothing here can place a real
+order.
+
+---
+
 
 ## Phase 4 addendum — Backtesting & validation engine
 
