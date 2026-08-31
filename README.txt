@@ -1,10 +1,28 @@
 ===============================================================================
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
-Phase 3 — Strategy & Signal Engine (ANALYSIS ONLY)
+Phase 4 — Backtesting & Validation (ANALYSIS ONLY)
 ===============================================================================
 
 *** LIVE TRADING IS NOT IMPLEMENTED. NO ORDERS CAN BE SENT. ***
-*** Strategies classify setups only; they never execute trades. ***
+*** Strategies classify setups only; backtests never place trades. ***
+
+Phase 4 adds a professional, leakage-free backtesting & validation engine:
+  * Event-driven backtester: signals act on the NEXT bar's open (no look-
+    ahead); positions managed conservatively (same-bar stop-before-target).
+  * Modelled execution costs: spread, slippage (both adverse) and commission;
+    risk-based position sizing to the stop distance.
+  * Full metrics: net/gross P&L, win/loss rate, profit factor, expectancy,
+    average/largest win-loss, max drawdown, consecutive streaks, Sharpe/
+    Sortino, plus equity and drawdown curves.
+  * Validation: train/validation/out-of-sample split, walk-forward analysis,
+    parameter-sensitivity (fragility flag), Monte Carlo (drawdown ranges), and
+    a PASS/WARNING/FAILED robustness report.
+  * Strict anti-leakage: the strategy only ever sees candles fully closed by
+    the decision time; date ranges gate ENTRIES without dropping lookback.
+
+The purpose is to test whether a strategy's historical result survives OUTSIDE
+its fitting period — NOT to find or promise a profitable strategy. Past
+performance does not guarantee future results.
 
 Phase 3 adds a modular strategy & signal engine on top of the Phase 2 market
 data:
@@ -157,10 +175,13 @@ and JWT), configuration safety invariants, and the Phase 2 market-data engine
 (tick processing, candle construction, duplicate/out-of-order/missing/gap
 handling, UTC timeframe bucketing, stale detection + signal gating, the
 reconnection state machine, broker symbol mapping, and the simulated provider);
-and the Phase 3 strategy engine (indicators validated vs reference values,
-regime detection, market structure, the five built-in strategies, transparent
-scoring, multi-timeframe analysis, alerts, the signal engine's safety gating,
-and the user rule-builder).
+the Phase 3 strategy engine (indicators validated vs reference values, regime
+detection, market structure, the five built-in strategies, transparent scoring,
+multi-timeframe analysis, alerts, the signal engine's safety gating, and the
+user rule-builder); and the Phase 4 backtesting engine (execution costs, risk
+sizing, backtester mechanics for long/short entries/exits, metrics, drawdown,
+train/validation/OOS separation, walk-forward OOS-after-IS ordering, parameter
+sensitivity, Monte Carlo determinism, and a direct no-look-ahead slicing test).
 
 (Full API/integration tests that need FastAPI/SQLAlchemy run once
 backend/requirements.txt is installed in a networked environment.)
@@ -225,9 +246,11 @@ All strategies are analysis-only and can never place an order.
 -------------------------------------------------------------------------------
 11. BACKTESTING / PAPER TRADING / LIVE TRADING
 -------------------------------------------------------------------------------
-  Backtesting  : reserved (Phase 3).
-  Paper trading: reserved (Phase 4); mode is LOCKED in the UI.
-  Live trading : reserved (Phase 6); mode is LOCKED and cannot be enabled.
+  Backtesting  : IMPLEMENTED (Phase 4). Run from the Backtesting page or via
+                 POST /api/backtest/run and /api/backtest/report. Leakage-free;
+                 results are historical measurements, never guarantees.
+  Paper trading: reserved (later phase); mode is LOCKED in the UI.
+  Live trading : reserved (later phase); mode is LOCKED and cannot be enabled.
 
 
 -------------------------------------------------------------------------------
@@ -285,15 +308,17 @@ It is already disabled and cannot be enabled in Phase 1. The safeguards:
 
 
 -------------------------------------------------------------------------------
-17. CURRENT LIMITATIONS (PHASE 3)
+17. CURRENT LIMITATIONS (PHASE 4)
 -------------------------------------------------------------------------------
-  * No backtesting/validation yet — strategy "historical performance" is a
-    placeholder until Phase 4. Do not treat signals as validated edges.
-  * No paper trading, MetaTrader, or live execution.
-  * The included real data provider is a generic REST poller; vendor-specific
-    and broker/MT5 feeds arrive in later phases.
-  * Dashboard, Settings, Strategies and Strategy Builder pages are interactive;
-    remaining pages are listed but arrive in later phases.
+  * Backtests use the historical candles the active provider can supply
+    (the labelled 'simulated' provider offline, or a real feed when connected).
+    Results are only as good as the input data.
+  * The backtester supports a single concurrent position and single primary
+    timeframe iteration (multi-timeframe strategies still get a correctly
+    sliced multi-tf context). Portfolio-level backtesting is future work.
+  * No paper trading, MetaTrader, or live execution yet.
+  * Dashboard, Settings, Strategies, Strategy Builder and Backtesting pages are
+    interactive; remaining pages arrive in later phases.
 
 
 -------------------------------------------------------------------------------
