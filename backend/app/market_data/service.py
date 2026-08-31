@@ -97,6 +97,14 @@ class MarketDataService:
                     broker_symbol=self.settings.market_data_symbol,
                 )
             )
+        if kind == "mt5":
+            # MetaTrader 5 as a (read-only) data source. Shares the connector
+            # with the MT5 integration so one verified connection serves both.
+            from backend.app.mt5 import get_mt5_service
+            from execution_engine import MT5MarketDataProvider
+
+            logger.info("Using MetaTrader 5 market-data provider")
+            return MT5MarketDataProvider(get_mt5_service().provider)
         return NullMarketDataProvider()
 
     # ------------------------------------------------------------- lifecycle

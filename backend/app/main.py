@@ -19,6 +19,7 @@ from backend.app.api.routes import (
     health,
     market,
     mode,
+    mt5,
     news,
     paper,
     strategies,
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
         strategies.router,
         backtest.router,
         paper.router,
+        mt5.router,
         news.router,
         settings_route.router,
     ]

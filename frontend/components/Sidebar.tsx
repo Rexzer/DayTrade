@@ -20,7 +20,7 @@ const NAV: Array<{ href: string; label: string; ready: boolean }> = [
   { href: "/account", label: "Account", ready: false },
   { href: "/settings", label: "Settings", ready: true },
   { href: "/risk", label: "Risk Management", ready: false },
-  { href: "/connections", label: "Data Connections", ready: false },
+  { href: "/connections", label: "Data Connections", ready: true },
   { href: "/assistant", label: "AI Assistant", ready: false },
 ];
 

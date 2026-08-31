@@ -135,3 +135,143 @@ class FixedSignalStrategy(Strategy):
             take_profits=(tp,),
             invalidation="test",
         )
+
+
+# --- Phase 6 MetaTrader 5 mock ---------------------------------------------
+
+from types import SimpleNamespace as _NS  # noqa: E402
+
+
+class FakeMT5:
+    """Minimal MetaTrader5-API-compatible mock for connector tests."""
+
+    TIMEFRAME_M1 = 1
+    TIMEFRAME_M5 = 5
+    TIMEFRAME_M15 = 15
+    TIMEFRAME_M30 = 30
+    TIMEFRAME_H1 = 16385
+    TIMEFRAME_H4 = 16388
+    TIMEFRAME_D1 = 16408
+
+    def __init__(
+        self,
+        *,
+        init_ok: bool = True,
+        symbol: str = "XAUUSDm",
+        order_check_retcode: int = 0,
+    ) -> None:
+        self.init_ok = init_ok
+        self.symbol = symbol
+        self.order_check_retcode = order_check_retcode
+        self._positions: tuple = (
+            _NS(
+                ticket=1,
+                symbol=symbol,
+                type=0,  # buy
+                volume=0.10,
+                price_open=2400.0,
+                sl=2390.0,
+                tp=2420.0,
+                price_current=2405.0,
+                profit=50.0,
+                time=1_700_000_000,
+            ),
+        )
+
+    def initialize(self, **kwargs):
+        return self.init_ok
+
+    def login(self, *args, **kwargs):
+        return True
+
+    def shutdown(self):
+        return True
+
+    def last_error(self):
+        return (-10003, "IPC initialize failed")
+
+    def account_info(self):
+        return _NS(
+            login=51234567,
+            name="Demo User",
+            server="ACME-Demo",
+            company="ACME Markets",
+            currency="USD",
+            balance=10_000.0,
+            equity=10_050.0,
+            margin=200.0,
+            margin_free=9_850.0,
+            margin_level=5025.0,
+            leverage=100,
+            trade_mode=0,  # demo
+        )
+
+    def symbol_select(self, symbol, enable):
+        return True
+
+    def symbol_info(self, symbol):
+        if symbol != self.symbol:
+            return None
+        return _NS(
+            name=self.symbol,
+            digits=2,
+            point=0.01,
+            trade_tick_size=0.01,
+            trade_tick_value=1.0,
+            trade_contract_size=100.0,
+            volume_min=0.01,
+            volume_max=50.0,
+            volume_step=0.01,
+            visible=True,
+            description="Gold vs US Dollar",
+        )
+
+    def symbol_info_tick(self, symbol):
+        if symbol != self.symbol:
+            return None
+        return _NS(bid=2400.10, ask=2400.40, last=2400.25, volume=3, time=1_700_000_000)
+
+    def copy_rates_from_pos(self, symbol, timeframe, start, count):
+        return [
+            _NS(
+                time=1_700_000_000 + i * 3600,
+                open=2400.0 + i,
+                high=2402.0 + i,
+                low=2399.0 + i,
+                close=2401.0 + i,
+                tick_volume=100 + i,
+            )
+            for i in range(count)
+        ]
+
+    def positions_get(self):
+        return self._positions
+
+    def set_positions(self, positions: tuple) -> None:
+        self._positions = positions
+
+    def orders_get(self):
+        return (
+            _NS(
+                ticket=99,
+                symbol=self.symbol,
+                type=2,  # buy limit
+                volume_current=0.20,
+                volume_initial=0.20,
+                price_open=2380.0,
+                sl=2370.0,
+                tp=2400.0,
+                state="placed",
+                time_setup=1_700_000_000,
+            ),
+        )
+
+    def history_deals_get(self, from_epoch, to_epoch):
+        return (
+            _NS(
+                ticket=5, symbol=self.symbol, volume=0.1, price=2401.0, profit=10.0, time=from_epoch
+            ),
+        )
+
+    def order_check(self, request):
+        return _NS(retcode=self.order_check_retcode, comment="checked")
