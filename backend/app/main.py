@@ -14,14 +14,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.routes import (
     account,
+    analytics,
+    assistant,
     auth,
     backtest,
     health,
+    health_status,
     live,
     market,
     mode,
     mt5,
     news,
+    notifications,
     paper,
     strategies,
 )
@@ -136,6 +140,10 @@ def create_app() -> FastAPI:
         paper.router,
         mt5.router,
         live.router,
+        assistant.router,
+        analytics.router,
+        notifications.router,
+        health_status.router,
         news.router,
         settings_route.router,
     ]

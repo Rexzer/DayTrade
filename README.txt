@@ -1,31 +1,47 @@
 ===============================================================================
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
-Phase 7 — Live Execution & Independent Risk Engine
+Phase 8 — AI Assistant, Analytics & Final Polish (COMPLETE)
 ===============================================================================
 
-*** LIVE EXECUTION IS REAL-MONEY AND USER-INITIATED ONLY. ***
-*** The platform NEVER auto-executes trades. A restart disables live trading. ***
+*** This is a REAL-TIME ANALYSIS + STRATEGY TESTING + RISK MANAGEMENT + TRADE
+*** EXECUTION + TRADE JOURNAL + AI EXPLANATION platform. It is NOT a machine
+*** that predicts the future. It never guarantees profits and never represents
+*** a signal score as a probability of profit. Live execution is real-money,
+*** user-initiated only, and disabled on restart.
 
-Phase 7 adds the live execution system behind the mandatory pipeline:
-  Strategy -> Signal -> Risk Engine -> Execution -> MetaTrader 5 -> Broker.
+The platform, built across 8 phases, provides:
+  1. Real-time XAUUSD market data (Phase 2) with LIVE/DELAYED/STALE/DISCONNECTED
+     health and failsafes.
+  2. A strategy & signal engine (Phase 3): indicators, market-regime detection,
+     five built-in strategies, transparent explainable signals + a user rule
+     builder.
+  3. A leakage-free backtesting & validation engine (Phase 4): metrics, equity/
+     drawdown curves, train/validation/out-of-sample split, walk-forward,
+     parameter sensitivity, Monte Carlo, PASS/WARNING/FAILED reports.
+  4. Paper trading on live data (Phase 5): simulated execution, risk limits,
+     signal-vs-trade, journal, per-strategy performance.
+  5. MetaTrader 5 integration (Phase 6, read-only): account/symbol/positions/
+     orders/history + verification.
+  6. Live execution + independent risk engine (Phase 7): the mandatory pipeline
+     Strategy -> Signal -> Risk -> Execution -> MT5, explicit authorization,
+     and an emergency kill switch.
+  7. AI assistant, advanced analytics & polish (Phase 8, below).
 
-  * INDEPENDENT, authoritative risk engine: broker-spec position sizing plus
-    all hard limits (per-trade risk, daily/weekly loss, drawdown, max open and
-    max XAUUSD positions, trades/day, consecutive losses) and spread/news/data/
-    execution failsafes. Daily-loss and drawdown halts LATCH and require a
-    manual reset. The strategy engine cannot bypass the risk engine.
-  * Explicit live authorization: LIVE_EXECUTION_ENABLED (backend) + six user
-    confirmations + an explicit ARM action + no active kill switch. In-memory,
-    so an application restart disables live trading (post-restart safety).
-  * Execution coordinator: validates orders (MT5 order_check), prevents
-    duplicate submissions, verifies every broker result (never assumes
-    success), and records the full execution log.
-  * Emergency stop (kill switch): stops new trades immediately; optionally
-    closes open positions and cancels pending orders first.
+Phase 8 adds:
+  * A DATA-GROUNDED AI assistant that explains the current system using ONLY
+    the platform's data (says "INSUFFICIENT DATA" when data is missing; never
+    invents prices, indicators, trades, news or statistics).
+  * Advanced performance analytics: breakdowns by strategy/timeframe/session/
+    direction/regime/day/month, and a strategy-comparison table.
+  * Trade-journal intelligence: neutral behavioural observations (over-trading,
+    trading after losses, large position impact, breakout chasing, ...).
+  * Signal-transition history (generated/confirmed/invalidated/executed).
+  * Configurable notifications (channels x event types).
+  * A system-health dashboard (Market Data / MT5 / Database / WebSocket /
+    Strategy / Risk / Execution / Notifications -> healthy/warning/failure).
 
-Automated/autonomous live trading is intentionally NOT provided:
-ENABLE_LIVE_TRADING must stay false (the app refuses to start otherwise).
-Live orders are only ever placed by an explicit user action.
+See docs/ for the full guides (ARCHITECTURE, STRATEGIES, RISK_MANAGEMENT,
+MT5_SETUP, BACKTESTING, API) and docs/SECURITY.md for the security review.
 
 Phase 5 adds a complete paper-trading environment that uses LIVE market data
 but simulates all execution:
@@ -386,16 +402,38 @@ POST /api/live/disable or /api/live/kill, or simply restart the backend.
 
 
 -------------------------------------------------------------------------------
-17. CURRENT LIMITATIONS / NOTES (PHASE 7)
+17. KNOWN LIMITATIONS & RECOMMENDED FUTURE IMPROVEMENTS (FINAL)
 -------------------------------------------------------------------------------
-  * Live execution requires the MT5 terminal + MetaTrader5 package on the
-    backend host (Windows/Wine) and a real/demo broker account; it cannot run
-    in a headless/Linux-only or offline environment.
-  * Live trading is USER-INITIATED only (POST /api/live/execute or the Live
-    Trading page). There is deliberately NO autonomous execution loop.
-  * ALWAYS validate on a DEMO account first. Real-money trading can lose money.
-  * All pages are interactive: Dashboard, Live Chart data, Strategies, Strategy
-    Builder, Backtesting, Paper Trading, Data Connections, Live Trading, Risk.
+Known limitations:
+  * MetaTrader 5 execution requires the MT5 terminal + MetaTrader5 package on a
+    Windows/Wine backend host and a broker account; it cannot connect in a
+    headless/Linux-only or offline environment.
+  * Live trading is USER-INITIATED only (POST /api/live/execute). There is
+    deliberately NO autonomous execution loop.
+  * The AI assistant is a transparent, rule/intent-based explainer over the
+    platform's own data — not a large language model. It answers a fixed set of
+    intents and says "INSUFFICIENT DATA" otherwise.
+  * Analytics/journal intelligence use the paper-trading trade record as the
+    realized-trade source; live-trade journaling to the DB is minimal.
+  * No economic-calendar/news provider is bundled, so news-based filters and
+    "news timing" journal checks are inactive until one is connected.
+  * The backtester runs a single concurrent position on one primary timeframe
+    (multi-timeframe strategies still receive a correctly sliced context).
+  * Notification delivery for email/Telegram/Discord requires registering
+    channel adapters; browser/sound are handled client-side.
+
+Recommended future improvements:
+  * Connect a real market-data provider and an economic-calendar source.
+  * Persist live trades + signals to PostgreSQL for durable analytics.
+  * Add authentication/roles to the API and per-user settings persistence.
+  * Add Alembic migrations; add integration tests that boot the full stack.
+  * Portfolio/multi-position backtesting and slippage modelling from tick data.
+  * Optional LLM layer on top of the grounded context (still no fabrication).
+  * Channel adapters for email/Telegram/Discord + push notifications.
+
+ALWAYS validate on a DEMO account first. Real-money trading can lose money.
+All UI pages are interactive except Market News, Account and Risk Management
+(surfaced elsewhere); those are documented as future work.
 
 
 -------------------------------------------------------------------------------
