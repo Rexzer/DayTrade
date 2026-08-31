@@ -1,0 +1,6 @@
+# Developer tooling used across the whole repository.
+# (The full backend runtime dependencies live in backend/requirements.txt.)
+pytest>=8.0
+ruff>=0.5
+black>=24.0
+mypy>=1.10

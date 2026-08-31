@@ -1,0 +1,81 @@
+# =============================================================================
+# XAUUSD Trading Platform — Docker orchestration (Phase 1)
+# =============================================================================
+# Brings up: PostgreSQL, Redis, the FastAPI backend, and the Next.js frontend.
+# Phase 1 is ANALYSIS-ONLY. No broker/MetaTrader services are defined here.
+#
+# Usage:
+#   cp .env.example .env   # then edit values
+#   docker compose up --build
+# =============================================================================
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: xauusd_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xauusd}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-xauusd}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xauusd}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: xauusd_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: xauusd_backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      # Hard safety locks — must stay false in Phase 1.
+      ENABLE_PAPER_TRADING: "false"
+      ENABLE_LIVE_TRADING: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: xauusd_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_WS_BASE_URL: ws://localhost:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data:
