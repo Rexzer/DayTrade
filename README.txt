@@ -1,16 +1,28 @@
 ===============================================================================
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
-Phase 2 — Real-time Market Data (ANALYSIS ONLY)
+Phase 3 — Strategy & Signal Engine (ANALYSIS ONLY)
 ===============================================================================
 
-*** LIVE TRADING IS NOT IMPLEMENTED. PHASE 2 IS MARKET DATA ONLY. ***
-*** No orders can be sent and no execution logic is connected. ***
+*** LIVE TRADING IS NOT IMPLEMENTED. NO ORDERS CAN BE SENT. ***
+*** Strategies classify setups only; they never execute trades. ***
 
-Phase 2 adds a robust, provider-independent real-time market-data engine:
-tick ingestion, UTC-aligned candle aggregation (handling duplicate/out-of-
-order/missing ticks), LIVE/DELAYED/STALE/DISCONNECTED health with signal
-gating, reconnection + backfill, broker-symbol mapping, PostgreSQL candle
-storage, a /ws/market WebSocket, and a chart wired to the live feed.
+Phase 3 adds a modular strategy & signal engine on top of the Phase 2 market
+data:
+  * Indicator library (EMA/SMA/RSI/MACD/ATR/Bollinger/ADX/VWAP), reference-
+    validated.
+  * Market-regime detection (9 regimes) and market-structure analysis.
+  * Five built-in strategies: Trend Following, EMA Pullback, Breakout+Retest,
+    Support/Resistance Reversal, Multi-Timeframe Confluence.
+  * Transparent, explainable signals (levels NO_SETUP / WATCH / POTENTIAL /
+    CONFIRMED) with entry/SL/TP, risk-reward, met + missing conditions and an
+    invalidation level. A configurable score rubric (NOT a probability).
+  * Multi-timeframe analysis (4H/1H/15M/5M) and an alert system.
+  * A user Strategy Builder (AND/OR rule conditions) for custom strategies.
+  * Safety: signal generation HALTS on stale/disconnected data or missing
+    timeframe history.
+
+No strategy is guaranteed profitable. Every strategy is a hypothesis to be
+backtested and validated (Phase 4+).
 
 Data sources:
   * MARKET_DATA_PROVIDER=none       -> fully disconnected (default).
@@ -144,7 +156,11 @@ null market-data provider, risk sizing/validation, security (password hashing
 and JWT), configuration safety invariants, and the Phase 2 market-data engine
 (tick processing, candle construction, duplicate/out-of-order/missing/gap
 handling, UTC timeframe bucketing, stale detection + signal gating, the
-reconnection state machine, broker symbol mapping, and the simulated provider).
+reconnection state machine, broker symbol mapping, and the simulated provider);
+and the Phase 3 strategy engine (indicators validated vs reference values,
+regime detection, market structure, the five built-in strategies, transparent
+scoring, multi-timeframe analysis, alerts, the signal engine's safety gating,
+and the user rule-builder).
 
 (Full API/integration tests that need FastAPI/SQLAlchemy run once
 backend/requirements.txt is installed in a networked environment.)
@@ -198,9 +214,12 @@ secret store and only a non-secret reference stored in the database.
 -------------------------------------------------------------------------------
 10. STRATEGY CONFIGURATION / CREATING STRATEGIES
 -------------------------------------------------------------------------------
-The plug-in interface exists now (strategy_engine/strategy.py). A strategy
-implements evaluate(context) -> Signal and is added to the registry. Built-in
-families and the user-facing Strategy Builder arrive in Phase 2.
+Built-in strategies live in strategy_engine/strategies/ and implement
+evaluate(context) -> Signal. Five ship in Phase 3. Users can also create
+custom strategies via the Strategy Builder page (AND/OR rule conditions over
+indicators/price/constants); these are validated, saved to the user_strategies
+table, and appear in the Strategy Library. API: POST /api/strategies/custom.
+All strategies are analysis-only and can never place an order.
 
 
 -------------------------------------------------------------------------------
@@ -266,14 +285,15 @@ It is already disabled and cannot be enabled in Phase 1. The safeguards:
 
 
 -------------------------------------------------------------------------------
-17. CURRENT LIMITATIONS (PHASE 2)
+17. CURRENT LIMITATIONS (PHASE 3)
 -------------------------------------------------------------------------------
-  * No indicators, signals, strategies or regime detection yet (next phase).
-  * No backtesting, paper trading, MetaTrader, or live execution.
-  * The included real provider is a generic REST poller; vendor-specific and
-    broker/MT5 feeds arrive in later phases.
-  * Only Dashboard and Settings pages are interactive; other pages are listed
-    but marked as coming in later phases.
+  * No backtesting/validation yet — strategy "historical performance" is a
+    placeholder until Phase 4. Do not treat signals as validated edges.
+  * No paper trading, MetaTrader, or live execution.
+  * The included real data provider is a generic REST poller; vendor-specific
+    and broker/MT5 feeds arrive in later phases.
+  * Dashboard, Settings, Strategies and Strategy Builder pages are interactive;
+    remaining pages are listed but arrive in later phases.
 
 
 -------------------------------------------------------------------------------

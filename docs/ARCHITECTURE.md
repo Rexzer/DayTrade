@@ -1,6 +1,6 @@
 # Architecture — XAUUSD Trading Platform
 
-> Phase 2 (real-time market data). Analysis-only. No live trading, no
+> Phase 3 (strategy & signal engine). Analysis-only. No live trading, no
 > automated execution, no real broker connection.
 
 ## Phase 2 addendum — Real-time market-data engine
@@ -44,6 +44,46 @@ signals_allowed()` returns False, and the reconnection machine refuses to
 report LIVE until backfill completes — so the platform never acts on, or
 silently resumes with, incomplete data. Simulated data is always tagged
 `source="simulated"` and surfaced as such in the UI.
+
+---
+
+## Phase 3 addendum — Strategy & signal engine
+
+The `strategy_engine/` package gains a full analysis engine (pure Python):
+
+```
+MarketContext (candles per timeframe)
+        │
+        ▼
+Indicators (indicators.py)  EMA/SMA/RSI/MACD/ATR/Bollinger/ADX/VWAP
+Structure  (structure.py)   swing points, HH/HL, support/resistance
+        │
+        ▼
+RegimeDetector (regime.py)  9 regimes from EMA+ADX+ATR/BB+structure
+        │
+        ▼
+Strategies (strategies/*)   5 built-ins + user RuleStrategy (rules.py)
+        │  Signal (level, direction, entry/SL/TP, R:R,
+        │          confirmations, missing, invalidation, score)
+        ▼
+SignalEngine (engine.py)    safety gating: HALTS on stale/disconnected
+        ├── MultiTimeframeAnalyzer (mtf.py)  4H/1H/15M/5M trend/structure/…
+        ├── ScoreCard (scoring.py)           transparent rubric (≠ probability)
+        └── AlertManager (alerts.py)         WATCH/POTENTIAL/CONFIRMED/INVALIDATED
+```
+
+Backend: `backend/app/strategy/service.py` builds the MarketContext from the
+MarketDataService candles, runs the engine with the feed's data status as the
+safety gate, and manages alerts + custom strategies. New endpoints:
+`GET /api/strategies`, `/strategies/signals`, `/strategies/{key}`,
+`/strategies/analysis/mtf`, `/strategies/alerts`, and custom-strategy CRUD at
+`/strategies/custom`. Custom strategies persist via the `user_strategies`
+table (`UserStrategy` model).
+
+Safety: strategies produce only NO_SETUP / WATCH / POTENTIAL_SETUP /
+CONFIRMED_SETUP. They can never reach TRADE_EXECUTED and cannot place orders.
+Signal generation stops entirely when data is stale/disconnected or required
+timeframe history is missing.
 
 ---
 

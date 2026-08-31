@@ -32,12 +32,18 @@ class MarketRegime(str, Enum):
     HIGH_VOLATILITY = "high_volatility"
     LOW_VOLATILITY = "low_volatility"
     BREAKOUT = "breakout"
-    UNKNOWN = "unknown"
+    UNCERTAIN = "uncertain"
+    UNKNOWN = "unknown"  # sentinel: no data / not yet classified
 
 
 @dataclass(frozen=True)
 class StrategyMetadata:
-    """Static description of a strategy (shown in the Strategies UI)."""
+    """Static description of a strategy (shown in the Strategies UI).
+
+    The descriptive condition fields (entry/confirmation/exit/stop/tp/
+    invalidation) make each strategy self-documenting so its logic is fully
+    transparent in the UI — never a black box.
+    """
 
     key: str
     name: str
@@ -45,6 +51,13 @@ class StrategyMetadata:
     suitable_timeframes: tuple[str, ...] = ()
     suitable_regimes: tuple[MarketRegime, ...] = ()
     indicators: tuple[str, ...] = ()
+    entry_conditions: tuple[str, ...] = ()
+    confirmation_conditions: tuple[str, ...] = ()
+    exit_conditions: tuple[str, ...] = ()
+    stop_loss_logic: str = ""
+    take_profit_logic: str = ""
+    invalidation_logic: str = ""
+    is_builtin: bool = True
 
     def to_dict(self) -> dict:
         return {
@@ -54,6 +67,13 @@ class StrategyMetadata:
             "suitable_timeframes": list(self.suitable_timeframes),
             "suitable_regimes": [r.value for r in self.suitable_regimes],
             "indicators": list(self.indicators),
+            "entry_conditions": list(self.entry_conditions),
+            "confirmation_conditions": list(self.confirmation_conditions),
+            "exit_conditions": list(self.exit_conditions),
+            "stop_loss_logic": self.stop_loss_logic,
+            "take_profit_logic": self.take_profit_logic,
+            "invalidation_logic": self.invalidation_logic,
+            "is_builtin": self.is_builtin,
         }
 
 

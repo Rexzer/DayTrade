@@ -9,8 +9,8 @@ import Link from "next/link";
 const NAV: Array<{ href: string; label: string; ready: boolean }> = [
   { href: "/", label: "Dashboard", ready: true },
   { href: "/chart", label: "Live XAUUSD Chart", ready: false },
-  { href: "/strategies", label: "Strategies", ready: false },
-  { href: "/strategy-builder", label: "Strategy Builder", ready: false },
+  { href: "/strategies", label: "Strategies", ready: true },
+  { href: "/strategy-builder", label: "Strategy Builder", ready: true },
   { href: "/backtesting", label: "Backtesting", ready: false },
   { href: "/paper-trading", label: "Paper Trading", ready: false },
   { href: "/live-trading", label: "Live Trading", ready: false },

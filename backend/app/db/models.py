@@ -281,3 +281,21 @@ class MarketCandle(Base, TimestampMixin):
         UniqueConstraint("symbol", "timeframe", "open_time_epoch", name="uq_candle_symbol_tf_time"),
         Index("ix_candle_symbol_tf_time", "symbol", "timeframe", "open_time_epoch"),
     )
+
+
+class UserStrategy(Base, TimestampMixin):
+    """A user-created (rule-based) strategy definition (Phase 3).
+
+    ``definition`` stores the serialized rule JSON produced by the Strategy
+    Builder. Rebuilt into a RuleStrategy at load time. Cannot execute trades.
+    """
+
+    __tablename__ = "user_strategies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    timeframe: Mapped[str] = mapped_column(String(8), default="15m", nullable=False)
+    definition: Mapped[str] = mapped_column(Text, nullable=False)  # JSON rule tree
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
