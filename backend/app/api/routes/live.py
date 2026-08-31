@@ -44,6 +44,16 @@ def disable() -> dict:
     return get_live_service().disable()
 
 
+class DryRunRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/dry-run")
+def set_dry_run(req: DryRunRequest, _op: str = Depends(require_operator)) -> dict:
+    """Toggle dry-run. ON = validate the full chain but NEVER send an order."""
+    return get_live_service().set_dry_run(req.enabled)
+
+
 class KillRequest(BaseModel):
     cancel_pending: bool = False
     close_positions: bool = False
@@ -94,6 +104,64 @@ def reset_risk() -> dict:
 def execute(_op: str = Depends(require_operator)) -> dict:
     """USER-INITIATED single execution of the best current confirmed signal."""
     return get_live_service().execute_current_signal()
+
+
+@router.get("/auto/intervals")
+def auto_intervals() -> dict:
+    """Selectable scan intervals + the recommended interval per strategy.
+
+    The recommended interval is each strategy's entry/trigger timeframe:
+    scanning faster mostly re-reads the same forming candle, scanning slower
+    risks missing the entry window.
+    """
+    from backend.app.strategy import get_strategy_service
+    from execution_engine import interval_options, recommend_for_strategy
+
+    recommendations = []
+    for md in get_strategy_service().list_strategies().get("strategies", []):
+        rec = recommend_for_strategy(md.get("key"), md.get("suitable_timeframes"))
+        recommendations.append(
+            {
+                "strategy_key": md.get("key"),
+                "name": md.get("name"),
+                "suitable_timeframes": md.get("suitable_timeframes"),
+                **rec,
+            }
+        )
+    return {"intervals": interval_options(), "recommendations": recommendations}
+
+
+class AutoTradeRequest(BaseModel):
+    enabled: bool
+    interval_seconds: int | None = None
+    strategy_key: str | None = None  # null/omitted = best confirmed across all
+
+
+@router.post("/auto")
+async def set_auto_trade(req: AutoTradeRequest, _op: str = Depends(require_operator)) -> dict:
+    """Turn the automatic trading loop on/off.
+
+    When ON, the platform runs the full risk-gated execution pipeline on the
+    chosen interval with no per-trade clicks. Requires live trading to already
+    be armed/authorized; the kill switch stops it and a restart disables it.
+    """
+    result = await get_live_service().set_auto_trade(
+        enabled=req.enabled,
+        interval_seconds=req.interval_seconds,
+        strategy_key=req.strategy_key,
+    )
+    if result.get("error"):
+        raise HTTPException(status_code=409, detail=result)
+    return result
+
+
+@router.post("/sync")
+def sync() -> dict:
+    """Reconcile broker positions and journal any closes (incl. manual ones).
+
+    Read-only against the broker; safe to call without operator authorization.
+    """
+    return get_live_service().sync_positions()
 
 
 @router.get("/log")

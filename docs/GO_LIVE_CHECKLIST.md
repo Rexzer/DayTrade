@@ -34,13 +34,17 @@ lose money; no strategy here is guaranteed and a score is not a probability.
       max positions, max spread, news blackout.
 - [ ] Set an operator secret: `LIVE_API_TOKEN=<random>` in the backend env.
 
-## 6. Enable live — on DEMO
+## 6. Enable live — on DEMO (DRY-RUN first)
 - [ ] Set `LIVE_EXECUTION_ENABLED=true` and restart the backend.
 - [ ] **Live Trading** page: enter the **Operator token**.
+- [ ] Confirm **Dry-run mode = ON** (it defaults ON). This runs the full chain
+      including the broker's own order-check but places **zero** orders.
 - [ ] Tick all six confirmations → **ENABLE LIVE TRADING** (arm).
-- [ ] Use **Execute best signal (manual)** and watch the **Execution Log** show:
-      signal → risk → order_check → order_request → order_response → position.
-- [ ] Verify the order/position appears in your MT5 terminal.
+- [ ] Use **Execute best signal (manual)** → the **Execution Log** should show
+      signal → risk → order_check → **dry_run** (validated, NOT sent). Confirm
+      **no** order appears in your MT5 terminal.
+- [ ] Only when the dry-run chain is clean: turn **Dry-run OFF** and Execute
+      once → verify a real order/position appears in MT5, then close it.
 - [ ] Test the **EMERGENCY STOP** — confirm new trades are blocked immediately.
 
 ## 7. Safety reminders (always true)

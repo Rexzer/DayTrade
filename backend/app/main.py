@@ -105,6 +105,14 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Stop the Auto Trade loop first (best-effort) so it can't fire during
+        # shutdown, then stop the market feed.
+        try:
+            from backend.app.live import get_live_service
+
+            await get_live_service()._stop_auto()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Auto-trade stop skipped", extra={"context": {"error": str(exc)}})
         await market.stop()
         logger.info("Application shutting down")
 

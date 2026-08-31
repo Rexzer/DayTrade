@@ -94,10 +94,14 @@ class ExecutionCoordinator:
         authorization: LiveAuthorization,
         *,
         dedup_window_seconds: float = 60.0,
+        dry_run: bool = False,
     ) -> None:
         self.provider = provider
         self.risk = risk
         self.authorization = authorization
+        # When True, the pipeline validates (incl. the broker's order_check) but
+        # NEVER sends an order. Safe for a first real-account smoke test.
+        self.dry_run = dry_run
         self.log = ExecutionLog()
         self._dedup_window = dedup_window_seconds
         self._recent: dict[tuple, float] = {}
@@ -174,6 +178,27 @@ class ExecutionCoordinator:
         )
         if not check.ok:
             return self._reject("order_check", "; ".join(check.reasons), risk_decision=decision)
+
+        # 6b) DRY RUN — everything above ran (incl. the broker's own order_check),
+        #     but we intentionally do NOT send. Proves the full chain against a
+        #     live server while placing ZERO orders. No dedup mark, so you can
+        #     re-run freely.
+        if self.dry_run:
+            self.log.add(
+                "dry_run",
+                True,
+                "DRY RUN — order validated (broker order_check passed); NOT sent.",
+                {"request": order_req.__dict__, "check": check.to_dict()},
+            )
+            return ExecutionOutcome(
+                executed=False,
+                reason=(
+                    f"DRY RUN: {order_req.side.upper()} {order_req.volume} lots would have been "
+                    f"sent and passed validation, but dry-run mode is ON so no order was placed."
+                ),
+                stage="dry_run",
+                risk_decision=decision,
+            )
 
         # 7) EXECUTION — send the order. Mark dedup BEFORE sending so a crash
         #    mid-send cannot cause a rapid resubmission of the same setup.
