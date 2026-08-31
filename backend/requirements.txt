@@ -1,0 +1,16 @@
+# Backend runtime dependencies (install in a networked environment).
+#   python -m venv .venv && source .venv/bin/activate
+#   pip install -r backend/requirements.txt
+#
+# Note: the pure-Python engine packages and core domain logic have NO runtime
+# dependencies and can be unit-tested without installing this file.
+
+fastapi>=0.111
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic[email]>=2.7
+email-validator>=2.1
+SQLAlchemy>=2.0
+psycopg[binary]>=3.1
+redis>=5.0
+python-multipart>=0.0.9

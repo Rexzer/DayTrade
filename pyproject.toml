@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xauusd-trading-platform"
+version = "0.1.0"
+description = "XAUUSD day-trading intelligence & automation platform (Phase 1 — analysis only)"
+readme = "README.txt"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+
+# Runtime dependencies for the full backend live in backend/requirements.txt.
+# The engine packages at the repository root are pure-Python and dependency-free
+# so their unit tests can run without installing web/database libraries.
+
+[tool.setuptools]
+packages = [
+    "market_data",
+    "strategy_engine",
+    "risk_engine",
+    "execution_engine",
+    "backtesting",
+    "paper_trading",
+]
+
+[tool.pytest.ini_options]
+# Make the repository root importable so `import strategy_engine`, `import backend...`
+# work in tests without an editable install (useful for offline / CI environments).
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra -q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["frontend", ".git", "__pycache__"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+# B008: FastAPI's dependency-injection idiom intentionally calls Depends() in
+# argument defaults; this is the documented, correct pattern.
+ignore = ["B008"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311"]
+extend-exclude = "frontend"
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+ignore_missing_imports = true
+exclude = "frontend"
