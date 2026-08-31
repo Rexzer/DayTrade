@@ -15,13 +15,25 @@ interface Authorization {
   authorized: boolean;
 }
 
+interface AutoTradeStatus {
+  enabled: boolean;
+  running: boolean;
+  interval_seconds: number;
+  interval_label: string | null;
+  strategy_key: string | null;
+  last_scan_epoch: number | null;
+  last_result: { executed?: boolean; reason?: string } | null;
+}
+
 interface LiveStatus {
   authorization: Authorization;
   risk_settings: Record<string, number>;
   risk_state: Record<string, unknown>;
   broker_connected: boolean;
   symbol: string;
+  dry_run: boolean;
   auto_execute: boolean;
+  auto_trade: AutoTradeStatus;
   note: string;
 }
 
@@ -32,11 +44,32 @@ interface LogEntry {
   message: string;
 }
 
+interface IntervalOption {
+  label: string;
+  seconds: number;
+}
+
+interface StrategyRecommendation {
+  strategy_key: string;
+  name: string;
+  suitable_timeframes: string[];
+  recommended: string;
+  recommended_seconds: number | null;
+  faster: string | null;
+  rationale: string;
+}
+
 export default function LiveTradingPage() {
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // Auto Trade config UI state.
+  const [intervals, setIntervals] = useState<IntervalOption[]>([]);
+  const [recommendations, setRecommendations] = useState<StrategyRecommendation[]>([]);
+  const [selStrategy, setSelStrategy] = useState<string>(""); // "" = best across all
+  const [selInterval, setSelInterval] = useState<number>(900); // default 15m
 
   async function refresh() {
     const [s, l] = await Promise.all([
@@ -52,6 +85,27 @@ export default function LiveTradingPage() {
     const id = setInterval(refresh, 5000);
     return () => clearInterval(id);
   }, []);
+
+  // Load selectable intervals + per-strategy recommendations once.
+  useEffect(() => {
+    apiGet<{ intervals: IntervalOption[]; recommendations: StrategyRecommendation[] }>(
+      "/live/auto/intervals"
+    ).then((r) => {
+      if (r.data) {
+        setIntervals(r.data.intervals);
+        setRecommendations(r.data.recommendations);
+      }
+    });
+  }, []);
+
+  const selectedRec = recommendations.find((r) => r.strategy_key === selStrategy) ?? null;
+
+  // When the operator picks a strategy, snap the interval to its recommendation.
+  function onStrategyChange(key: string) {
+    setSelStrategy(key);
+    const rec = recommendations.find((r) => r.strategy_key === key);
+    if (rec?.recommended_seconds) setSelInterval(rec.recommended_seconds);
+  }
 
   const [opToken, setOpToken] = useState("");
 
@@ -151,6 +205,117 @@ export default function LiveTradingPage() {
             />
           </label>
         </div>
+      </div>
+
+      {/* Auto Trade — fully automatic execution on a chosen scan interval. */}
+      <div className="card" style={{ marginBottom: 12, borderColor: status?.auto_trade?.running ? "var(--red)" : undefined }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h3 style={{ marginBottom: 4 }}>Auto Trade</h3>
+            <div className="muted" style={{ fontSize: 12 }}>
+              When ON, the bot scans on your chosen interval and executes
+              qualifying setups automatically — sizing, stop-loss and
+              take-profit handled for you, no clicks. Every trade still passes
+              the risk engine; the kill switch stops it and a restart disables
+              it. Requires live trading to be armed first.
+            </div>
+          </div>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span className={`badge ${status?.auto_trade?.running ? "red" : "gold"}`}>
+              {status?.auto_trade?.running ? "AUTO ON" : "AUTO OFF"}
+            </span>
+            <input
+              type="checkbox"
+              disabled={busy || !auth?.authorized}
+              checked={!!status?.auto_trade?.running}
+              onChange={(e) =>
+                post("/auto", {
+                  enabled: e.target.checked,
+                  interval_seconds: selInterval,
+                  strategy_key: selStrategy || null,
+                })
+              }
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-2" style={{ marginTop: 12 }}>
+          <div>
+            <label className="label" style={{ fontSize: 12 }}>Strategy</label>
+            <select
+              value={selStrategy}
+              onChange={(e) => onStrategyChange(e.target.value)}
+              disabled={status?.auto_trade?.running}
+              style={{
+                width: "100%",
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                borderRadius: 6,
+                padding: "8px 10px",
+                marginTop: 4,
+              }}
+            >
+              <option value="">Best confirmed setup (all strategies)</option>
+              {recommendations.map((r) => (
+                <option key={r.strategy_key} value={r.strategy_key}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label" style={{ fontSize: 12 }}>Scan interval</label>
+            <select
+              value={selInterval}
+              onChange={(e) => setSelInterval(Number(e.target.value))}
+              disabled={status?.auto_trade?.running}
+              style={{
+                width: "100%",
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                borderRadius: 6,
+                padding: "8px 10px",
+                marginTop: 4,
+              }}
+            >
+              {intervals.map((iv) => (
+                <option key={iv.seconds} value={iv.seconds}>
+                  Every {iv.label}
+                  {selectedRec?.recommended_seconds === iv.seconds ? "  ★ recommended" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {selectedRec ? (
+          <div className="notice" style={{ marginTop: 10, fontSize: 12 }}>
+            <b>Recommended for {selectedRec.name}: every {selectedRec.recommended}</b>
+            {selectedRec.faster ? ` (or ${selectedRec.faster} for earlier entries)` : ""}. {selectedRec.rationale}
+          </div>
+        ) : (
+          <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+            &quot;Best confirmed setup&quot; trades whichever strategy currently
+            shows a confirmed signal. Pick a specific strategy to see its
+            recommended scan interval.
+          </div>
+        )}
+
+        {status?.auto_trade?.running && (
+          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            Running every {status.auto_trade.interval_label}
+            {status.auto_trade.strategy_key ? ` · strategy: ${status.auto_trade.strategy_key}` : " · best-of-all"}
+            {status.dry_run ? " · DRY-RUN (no real orders)" : " · LIVE (placing real orders)"}
+            {status.auto_trade.last_result?.reason ? ` · last: ${status.auto_trade.last_result.reason}` : ""}
+          </div>
+        )}
+        {!auth?.authorized && (
+          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            Arm live trading below (complete the confirmations and ENABLE) before turning Auto Trade on.
+          </div>
+        )}
       </div>
 
       {/* Emergency stop — always visible and prominent. */}
@@ -275,11 +440,14 @@ export default function LiveTradingPage() {
       </div>
 
       <div className="disclaimer">
-        Phase 7 — live execution flows Strategy → Signal → Risk Engine →
-        Execution → MetaTrader 5. The independent risk engine can reject any
-        trade and the strategy engine cannot bypass it. Live trading requires
-        explicit authorization, is never automatic, and is disabled on restart.
-        Past performance does not guarantee future results.
+        Live execution flows Strategy → Signal → Risk Engine → Execution →
+        MetaTrader 5. The independent risk engine can reject any trade and the
+        strategy engine cannot bypass it. Trades can be placed manually
+        (one click each) or automatically via Auto Trade — both run this exact
+        risk-gated pipeline. Live trading requires explicit authorization, the
+        kill switch stops everything instantly, and a restart disables both
+        live trading and Auto Trade. Trading real money carries risk of loss;
+        past performance does not guarantee future results.
       </div>
     </div>
   );

@@ -17,6 +17,18 @@ from execution_engine.authorization import (
     AuthorizationError,
     LiveAuthorization,
 )
+from execution_engine.auto_trade import (
+    DEFAULT_INTERVAL_SECONDS,
+    SCAN_INTERVAL_SECONDS,
+    STRATEGY_RECOMMENDATIONS,
+    AutoTradeConfig,
+    interval_options,
+    interval_seconds,
+    is_valid_interval_seconds,
+    label_for_seconds,
+    recommend_for_strategy,
+    should_scan,
+)
 from execution_engine.coordinator import (
     ExecutionCoordinator,
     ExecutionLog,
@@ -76,4 +88,14 @@ __all__ = [
     "ExecutionCoordinator",
     "ExecutionLog",
     "ExecutionOutcome",
+    "AutoTradeConfig",
+    "SCAN_INTERVAL_SECONDS",
+    "DEFAULT_INTERVAL_SECONDS",
+    "STRATEGY_RECOMMENDATIONS",
+    "interval_options",
+    "interval_seconds",
+    "is_valid_interval_seconds",
+    "label_for_seconds",
+    "recommend_for_strategy",
+    "should_scan",
 ]

@@ -1,14 +1,18 @@
-"""LiveTradingService — user-initiated, risk-gated live execution (Phase 7).
+"""LiveTradingService — risk-gated live execution, manual or automatic (Phase 7+).
 
 Wires: strategy signals -> INDEPENDENT risk engine -> execution coordinator ->
 MetaTrader 5. Live execution requires an explicit authorization (config flag +
-all confirmations + arm + no kill switch) and is only ever triggered by a user
-action — the platform never auto-executes trades. The authorization is
-in-memory, so a restart disables live trading (post-restart safety).
+all confirmations + arm + no kill switch). It can be triggered manually (one
+click per trade) OR by the opt-in Auto Trade loop, which runs the SAME pipeline
+on a chosen scan interval. Auto Trade still requires full authorization, still
+passes every trade through the risk engine, and is stopped instantly by the
+kill switch. The authorization and the Auto Trade flag are in-memory, so a
+restart disables both (post-restart safety).
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 import time as _time
 
@@ -17,13 +21,24 @@ from backend.app.core.logging_config import get_logger
 from backend.app.market_data import get_market_service
 from backend.app.mt5 import get_mt5_service
 from backend.app.strategy import get_strategy_service
-from execution_engine import ExecutionCoordinator, LiveAuthorization, PositionSynchronizer
+from execution_engine import (
+    AutoTradeConfig,
+    ExecutionCoordinator,
+    LiveAuthorization,
+    PositionSynchronizer,
+    is_valid_interval_seconds,
+    should_scan,
+)
 from execution_engine.provider import BrokerConnectionError, InvalidSymbolError
 from risk_engine import LiveRiskEngine, RiskContext, RiskSettings
 from strategy_engine.strategy import MarketContext
 
 logger = get_logger("live")
 _PRIMARY_TF = "1h"
+# Granularity of the auto-trade loop's wake-ups. The real scan cadence is the
+# operator-selected interval; this just bounds how promptly the loop reacts to
+# a disarm/kill and to the interval elapsing.
+_AUTO_TICK_SECONDS = 1.0
 
 
 class LiveTradingService:
@@ -42,6 +57,15 @@ class LiveTradingService:
         # Tracks open positions so closes (incl. manual closes in the MT5
         # terminal) are journaled as round-trip live trades.
         self._pos_sync = PositionSynchronizer()
+        # Auto Trade — OFF by default, resets on restart. When enabled, a
+        # background loop runs the SAME risk-gated execution pipeline on the
+        # chosen scan interval. It never bypasses authorization or the risk
+        # engine and stops the moment live trading is no longer authorized.
+        self.auto = AutoTradeConfig()
+        self._auto_task: asyncio.Task | None = None
+        self._auto_running = False
+        self._last_scan_epoch: float | None = None
+        self._last_auto_result: dict | None = None
 
     # ------------------------------------------------------------- status
     def status(self) -> dict:
@@ -64,11 +88,23 @@ class LiveTradingService:
             "last_sync": last_sync,
             "symbol": self.symbol,
             "dry_run": self.coordinator.dry_run,
-            "auto_execute": False,  # the platform NEVER auto-executes
+            "auto_execute": self.auto.enabled and self._auto_running,
+            "auto_trade": self.auto_status(),
             "note": (
-                "Live execution is user-initiated and gated by the independent "
-                "risk engine. A restart disables live trading."
+                "Live execution is gated by the independent risk engine and "
+                "requires explicit authorization. Auto Trade (when ON) runs the "
+                "same pipeline automatically; the kill switch stops it and a "
+                "restart disables it."
             ),
+        }
+
+    def auto_status(self) -> dict:
+        """Current Auto Trade configuration + runtime state."""
+        return {
+            **self.auto.to_dict(),
+            "running": self._auto_running,
+            "last_scan_epoch": self._last_scan_epoch,
+            "last_result": self._last_auto_result,
         }
 
     # ------------------------------------------------------------- authz flow
@@ -170,11 +206,13 @@ class LiveTradingService:
         )
         return ctx, spec
 
-    def execute_current_signal(self) -> dict:
-        """USER-INITIATED: attempt to execute the best current confirmed signal.
+    def execute_current_signal(self, strategy_key: str | None = None) -> dict:
+        """Attempt to execute the best current confirmed signal.
 
         Runs the full pipeline (authorization -> risk -> validation ->
-        execution). Never called automatically.
+        execution). Called by a user click OR by the Auto Trade loop; the
+        pipeline is identical either way. When ``strategy_key`` is given, only
+        that strategy's signals are considered.
         """
         if not self.authorization.is_authorized():
             return {"executed": False, "reason": "Live execution is not authorized."}
@@ -189,9 +227,13 @@ class LiveTradingService:
         )
         if not result.signals_allowed:
             return {"executed": False, "reason": result.reason}
-        best = next((s for s in result.signals if s.get("level", 0) >= 3), None)
+        candidates = result.signals
+        if strategy_key:
+            candidates = [s for s in candidates if s.get("strategy_key") == strategy_key]
+        best = next((s for s in candidates if s.get("level", 0) >= 3), None)
         if best is None:
-            return {"executed": False, "reason": "No confirmed setup to execute."}
+            scope = f" for strategy '{strategy_key}'" if strategy_key else ""
+            return {"executed": False, "reason": f"No confirmed setup to execute{scope}."}
         outcome = self.coordinator.execute_signal(best, ctx, spec)
         self._persist(best, outcome)
         return outcome.to_dict()
@@ -308,6 +350,113 @@ class LiveTradingService:
             logger.debug(
                 "closed-position persistence skipped", extra={"context": {"error": str(exc)}}
             )
+
+    # ------------------------------------------------------------- auto trade
+    async def set_auto_trade(
+        self,
+        *,
+        enabled: bool,
+        interval_seconds: int | None = None,
+        strategy_key: str | None = None,
+    ) -> dict:
+        """Turn Auto Trade on/off and configure its scan interval + strategy.
+
+        Enabling requires live trading to already be authorized (armed with all
+        confirmations, config enabled, no kill). This is the SAME bar as a
+        manual execution — Auto Trade just repeats it automatically.
+        """
+        if enabled:
+            if not self.authorization.is_authorized():
+                return {
+                    "error": (
+                        "Arm live trading (complete confirmations + ENABLE) "
+                        "before turning Auto Trade on."
+                    ),
+                    "auto_trade": self.auto_status(),
+                }
+            if interval_seconds is not None:
+                if not is_valid_interval_seconds(int(interval_seconds)):
+                    return {
+                        "error": "Invalid scan interval.",
+                        "auto_trade": self.auto_status(),
+                    }
+                self.auto.interval_seconds = int(interval_seconds)
+            self.auto.strategy_key = strategy_key
+            self.auto.enabled = True
+            self._last_scan_epoch = None  # scan promptly on enable
+            await self._start_auto()
+            self.coordinator.log.add(
+                "auto_trade",
+                True,
+                (
+                    f"Auto Trade ENABLED (every "
+                    f"{self.auto.to_dict()['interval_label']}, strategy="
+                    f"{strategy_key or 'best-of-all'}). Dry-run="
+                    f"{self.coordinator.dry_run}."
+                ),
+                self.auto.to_dict(),
+            )
+        else:
+            self.auto.enabled = False
+            await self._stop_auto()
+            self.coordinator.log.add("auto_trade", True, "Auto Trade DISABLED by user.")
+        return {"auto_trade": self.auto_status()}
+
+    async def _start_auto(self) -> None:
+        if self._auto_running:
+            return
+        self._auto_running = True
+        self._auto_task = asyncio.create_task(self._auto_loop(), name="auto-trade-loop")
+
+    async def _stop_auto(self) -> None:
+        self._auto_running = False
+        task = self._auto_task
+        self._auto_task = None
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
+
+    async def _auto_loop(self) -> None:
+        """Background loop: on each due scan, run the full execution pipeline.
+
+        Non-blocking: the (synchronous, I/O-bound) scan runs in a thread so the
+        event loop stays responsive. The loop self-terminates the instant live
+        trading is no longer authorized (kill switch, disarm or restart).
+        """
+        loop = asyncio.get_event_loop()
+        while self._auto_running:
+            try:
+                if not self.authorization.is_authorized():
+                    self.coordinator.log.add(
+                        "auto_trade",
+                        False,
+                        "Auto Trade stopped: live trading is no longer authorized.",
+                    )
+                    self._auto_running = False
+                    self.auto.enabled = False
+                    break
+                now = _time.time()
+                if should_scan(now, self._last_scan_epoch, self.auto.interval_seconds):
+                    self._last_scan_epoch = now
+                    result = await loop.run_in_executor(None, self._auto_scan_once)
+                    self._last_auto_result = result
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - a scan error must not kill the loop
+                logger.error("Auto-trade loop error", extra={"context": {"error": str(exc)}})
+            await asyncio.sleep(_AUTO_TICK_SECONDS)
+
+    def _auto_scan_once(self) -> dict:
+        """One automatic scan+execute cycle (runs in a worker thread)."""
+        result = self.execute_current_signal(strategy_key=self.auto.strategy_key)
+        if not result.get("executed"):
+            # Log only the non-trivial outcomes to keep the log readable.
+            reason = result.get("reason", "")
+            self.coordinator.log.add("auto_scan", True, f"Auto scan: {reason}", {"result": result})
+        return result
 
 
 _service: LiveTradingService | None = None
