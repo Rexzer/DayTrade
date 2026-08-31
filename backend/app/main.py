@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.api.routes import (
     account,
     auth,
+    backtest,
     health,
     market,
     mode,
@@ -118,6 +119,7 @@ def create_app() -> FastAPI:
         market.router,
         account.router,
         strategies.router,
+        backtest.router,
         news.router,
         settings_route.router,
     ]

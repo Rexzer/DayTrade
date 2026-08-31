@@ -30,9 +30,15 @@ INVALIDATED), and a user rule-builder for custom strategies. Signals are
 explainable and gated by feed health (halted on stale/disconnected data).
 **Strategies classify setups only — they never execute trades.**
 
-## Phase 3 — Backtesting
-Historical data ingestion, backtesting engine, performance metrics, walk-forward
-analysis, Monte Carlo, parameter-sensitivity and overfitting warnings.
+## Phase 4 — Backtesting & Validation ✅ (this deliverable)
+Leakage-free event-driven backtester (signal on closed bar, next-bar
+execution, conservative same-bar stop-before-target) with modelled execution
+costs (spread/slippage/commission) and risk-based position sizing. Full
+performance metrics, equity + drawdown curves, train/validation/out-of-sample
+splitting, walk-forward analysis (optimize in-sample, evaluate strictly-later
+OOS), parameter-sensitivity (fragility flag), Monte Carlo (drawdown ranges),
+and a PASS/WARNING/FAILED strategy report. Purpose is robustness assessment —
+never a profitability guarantee. **No trade execution.**
 
 ## Phase 4 — Paper Trading
 Virtual account, simulated execution against live data, trade journal, and

@@ -1,7 +1,44 @@
 # Architecture — XAUUSD Trading Platform
 
-> Phase 3 (strategy & signal engine). Analysis-only. No live trading, no
+> Phase 4 (backtesting & validation). Analysis-only. No live trading, no
 > automated execution, no real broker connection.
+
+## Phase 4 addendum — Backtesting & validation engine
+
+The `backtesting/` package (pure Python) provides a leakage-free backtester and
+a validation suite:
+
+```
+candles_by_tf ──► Backtester (engine.py)
+                    │  no look-ahead: signal on CLOSED bar j → enter at OPEN j+1;
+                    │  position managed from j+2; same-bar stop-before-target
+                    │  CostModel (execution.py): spread+slippage adverse, commission
+                    │  position_lots: risk-% sizing to the stop distance
+                    ▼
+                  BacktestResult ── metrics.py (net/gross, PF, expectancy,
+                    │                win/loss, avg/largest, max drawdown, streaks,
+                    │                Sharpe/Sortino, equity + drawdown curves)
+                    ▼
+Validation:  splitting.py (train/validation/OOS; date range gates ENTRIES only,
+             full lookback retained) · walkforward.py (optimize in-sample →
+             evaluate strictly-later OOS) · sensitivity.py (fragility flag) ·
+             montecarlo.py (bootstrap drawdown/equity ranges) ·
+             report.py (PASS/WARNING/FAILED + robustness + warnings)
+```
+
+Anti-leakage is enforced structurally: `Backtester._slice_context` only ever
+exposes candles fully closed by the decision time (across all timeframes), and
+entries execute on the next bar's open. Date ranges restrict which bars may
+open a trade without dropping lookback history, so sub-period and walk-forward
+tests never see the future.
+
+Backend: `backend/app/backtesting/service.py` sources historical candles from
+the active provider and runs backtests/reports. Endpoints:
+`GET /api/backtest/strategies`, `POST /api/backtest/run`, `POST /api/backtest/report`.
+Nothing here can place an order, and no result is presented as a guarantee.
+
+---
+
 
 ## Phase 2 addendum — Real-time market-data engine
 
