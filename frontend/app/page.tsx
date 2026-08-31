@@ -4,11 +4,11 @@ import { XauHeader } from "@/components/XauHeader";
 import { MarketOverview } from "@/components/MarketOverview";
 import { ChartArea } from "@/components/ChartArea";
 import { MultiTimeframePanel } from "@/components/MultiTimeframePanel";
-import { StrategyPanel } from "@/components/StrategyPanel";
 import { AccountPanel } from "@/components/AccountPanel";
 import { NewsPanel } from "@/components/NewsPanel";
 import { ModeSelector } from "@/components/ModeSelector";
 import { DataSourcePanel } from "@/components/DataSourcePanel";
+import { ActiveSignalPanel } from "@/components/ActiveSignalPanel";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useMarketStream } from "@/lib/useMarketStream";
 import { MarketSnapshot } from "@/lib/api";
@@ -78,16 +78,18 @@ export default function DashboardPage() {
         <AccountPanel account={data.account} />
       </div>
 
-      <div className="grid grid-2" style={{ marginTop: 16 }}>
-        <StrategyPanel data={data.strategies} />
+      <div className="section-title">Signals</div>
+      <div className="grid grid-2">
+        <ActiveSignalPanel />
         <NewsPanel data={data.news} />
       </div>
 
       <div className="disclaimer">
-        Phase 2 — real-time market data; analysis only. Live trading is NOT
-        implemented and no orders can be sent. Data marked SIMULATED is
-        synthetic and must never be treated as real prices. Past performance
-        does not guarantee future results.
+        Phase 3 — real-time data + strategy/signal engine; analysis only. Live
+        trading is NOT implemented and no orders can be sent. Signals are
+        explainable classifications (never executed trades); scores are
+        transparent rubrics, not probabilities of profit. Past performance does
+        not guarantee future results.
       </div>
     </div>
   );

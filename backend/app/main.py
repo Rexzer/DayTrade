@@ -59,6 +59,28 @@ async def lifespan(app: FastAPI):
         },
     )
 
+    # Load any persisted user-created strategies (best-effort).
+    try:
+        import json as _json
+
+        from backend.app.db.session import SessionLocal
+        from backend.app.db.strategy_repository import UserStrategyRepository
+        from backend.app.strategy import get_strategy_service
+
+        db = SessionLocal()
+        try:
+            defs = [
+                _json.loads(row.definition)
+                for row in UserStrategyRepository(db).list(enabled_only=True)
+            ]
+            get_strategy_service().load_custom(defs)
+            if defs:
+                logger.info("Loaded custom strategies", extra={"context": {"count": len(defs)}})
+        finally:
+            db.close()
+    except Exception as exc:  # noqa: BLE001 - DB optional; builtins still work
+        logger.debug("Custom strategy load skipped", extra={"context": {"error": str(exc)}})
+
     # Start the real-time market-data pipeline (no-op if provider is "none").
     market = get_market_service()
     await market.start()

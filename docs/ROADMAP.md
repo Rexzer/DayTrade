@@ -20,11 +20,15 @@ the live feed. Ships a clearly-labelled simulated provider for offline
 development and a generic REST provider scaffold for real feeds.
 **Market data only — no trading.**
 
-## Phase 2b / later — Analysis
-Technical indicators (EMA/SMA/RSI/MACD/ATR/Bollinger/VWAP/ADX), market-regime
-detection, the built-in strategy families, and signal generation with full
-reasoning feeding the dashboard. (Signal generation consumes the Phase 2 feed
-health so it halts automatically on stale data.)
+## Phase 3 — Strategy & Signal Engine ✅ (this deliverable)
+Indicator library (EMA/SMA/RSI/MACD/ATR/Bollinger/ADX/VWAP, reference-
+validated), nine-way market-regime detection, market-structure analysis, five
+built-in strategies (Trend Following, EMA Pullback, Breakout+Retest, S/R
+Reversal, Multi-Timeframe Confluence), a transparent configurable signal-score
+rubric, multi-timeframe analysis, an alert system (WATCH/POTENTIAL/CONFIRMED/
+INVALIDATED), and a user rule-builder for custom strategies. Signals are
+explainable and gated by feed health (halted on stale/disconnected data).
+**Strategies classify setups only — they never execute trades.**
 
 ## Phase 3 — Backtesting
 Historical data ingestion, backtesting engine, performance metrics, walk-forward

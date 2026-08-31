@@ -125,3 +125,79 @@ export interface SymbolsResponse {
   active_broker_symbol: string;
   known_aliases: string[];
 }
+
+// ---- Strategy & signal engine (Phase 3) ----
+export interface SignalDTO {
+  strategy_key: string;
+  strategy_name?: string;
+  level: number;
+  level_name: string;
+  regime: string;
+  timeframe: string | null;
+  direction: string | null;
+  entry_zone: number[] | null;
+  stop_loss: number | null;
+  take_profits: number[];
+  risk_reward: number | null;
+  confirmations: string[];
+  missing_confirmations: string[];
+  invalidation: string | null;
+  confidence_score: number | null;
+  notes: string | null;
+}
+
+export interface SignalsResponse {
+  signals_allowed: boolean;
+  reason: string;
+  regime: Record<string, unknown> | null;
+  signals: SignalDTO[];
+}
+
+export interface StrategyItem {
+  key: string;
+  name: string;
+  description: string;
+  suitable_timeframes: string[];
+  suitable_regimes: string[];
+  indicators: string[];
+  entry_conditions: string[];
+  confirmation_conditions: string[];
+  exit_conditions: string[];
+  stop_loss_logic: string;
+  take_profit_logic: string;
+  invalidation_logic: string;
+  is_builtin: boolean;
+  current_signal: {
+    level: number;
+    level_name: string;
+    direction: string | null;
+    confidence_score: number | null;
+  } | null;
+}
+
+export interface StrategiesListResponse {
+  connected: boolean;
+  signals_allowed: boolean;
+  strategies: StrategyItem[];
+}
+
+export interface MtfRow {
+  timeframe: string;
+  trend: string;
+  structure: string;
+  momentum: string;
+  signal_state: string;
+}
+
+export interface AlertDTO {
+  strategy_name: string;
+  kind: string;
+  direction: string | null;
+  message: string;
+  timeframe: string | null;
+  entry_zone: number[] | null;
+  stop_loss: number | null;
+  take_profits: number[] | null;
+  risk_reward: number | null;
+  timestamp_epoch: number;
+}

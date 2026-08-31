@@ -292,6 +292,14 @@ class MarketDataService:
             return []
         return [c.to_dict() for c in agg.latest(limit)]
 
+    def candles_by_timeframe(self, limit: int = 300) -> dict:
+        """Return {timeframe_str: [Candle, ...]} for the strategy engine."""
+        return {tf.value: agg.latest(limit) for tf, agg in self.aggregators.items()}
+
+    def data_status_str(self) -> str:
+        """Current freshness as a string ('live'|'delayed'|'stale'|'disconnected')."""
+        return self.health.status().value
+
     def symbols(self) -> dict:
         return {
             "canonical": self.symbol,
