@@ -39,7 +39,7 @@ class Settings:
     """Typed view over the environment."""
 
     app_env: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
-    app_name: str = field(default_factory=lambda: os.getenv("APP_NAME", "XAUUSD Trading Platform"))
+    app_name: str = field(default_factory=lambda: os.getenv("APP_NAME", "RexDayTrades"))
     app_debug: bool = field(default_factory=lambda: _get_bool("APP_DEBUG", True))
 
     backend_host: str = field(default_factory=lambda: os.getenv("BACKEND_HOST", "0.0.0.0"))

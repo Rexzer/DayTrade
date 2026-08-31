@@ -10,13 +10,14 @@ in-memory, so a restart disables live trading (post-restart safety).
 from __future__ import annotations
 
 import time
+import time as _time
 
 from backend.app.config import get_settings
 from backend.app.core.logging_config import get_logger
 from backend.app.market_data import get_market_service
 from backend.app.mt5 import get_mt5_service
 from backend.app.strategy import get_strategy_service
-from execution_engine import ExecutionCoordinator, LiveAuthorization
+from execution_engine import ExecutionCoordinator, LiveAuthorization, PositionSynchronizer
 from execution_engine.provider import BrokerConnectionError, InvalidSymbolError
 from risk_engine import LiveRiskEngine, RiskContext, RiskSettings
 from strategy_engine.strategy import MarketContext
@@ -38,15 +39,29 @@ class LiveTradingService:
         self.coordinator = ExecutionCoordinator(
             get_mt5_service().provider, self.risk, self.authorization, dry_run=True
         )
+        # Tracks open positions so closes (incl. manual closes in the MT5
+        # terminal) are journaled as round-trip live trades.
+        self._pos_sync = PositionSynchronizer()
 
     # ------------------------------------------------------------- status
     def status(self) -> dict:
         mt5 = get_mt5_service()
+        connected = mt5.provider.is_connected()
+        last_sync = None
+        if connected:
+            # Opportunistically reconcile positions so manual closes in the MT5
+            # terminal are journaled without a dedicated background loop. Never
+            # let a sync failure break the status response.
+            try:
+                last_sync = self.sync_positions()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("opportunistic sync skipped", extra={"context": {"error": str(exc)}})
         return {
             "authorization": self.authorization.status(),
             "risk_settings": self.risk.settings.to_dict(),
             "risk_state": self.risk.state.to_dict(),
-            "broker_connected": mt5.provider.is_connected(),
+            "broker_connected": connected,
+            "last_sync": last_sync,
             "symbol": self.symbol,
             "dry_run": self.coordinator.dry_run,
             "auto_execute": False,  # the platform NEVER auto-executes
@@ -244,6 +259,55 @@ class LiveTradingService:
 
     def execution_log(self, limit: int = 100) -> dict:
         return {"log": self.coordinator.log.recent(limit)}
+
+    # ------------------------------------------------------------- position sync
+    def sync_positions(self) -> dict:
+        """Reconcile broker positions; journal any that closed (incl. manual).
+
+        Detects opened / modified / closed positions vs the last snapshot. Each
+        CLOSED position is persisted as a round-trip live trade with its P&L,
+        so trades you close directly in MetaTrader are reflected here too.
+        """
+        provider = get_mt5_service().provider
+        if not provider.is_connected():
+            return {"synced": False, "reason": "MetaTrader 5 is not connected."}
+        try:
+            positions = provider.get_positions()
+        except BrokerConnectionError as exc:
+            return {"synced": False, "reason": str(exc)}
+
+        diff = self._pos_sync.diff(positions)
+        if diff.closed:
+            self._persist_closed(diff.closed)
+        for pos in diff.opened:
+            self.coordinator.log.add(
+                "position_synced",
+                True,
+                f"Position opened: {pos.side} {pos.volume} {pos.symbol}",
+                {"ticket": pos.ticket},
+            )
+        for pos in diff.closed:
+            self.coordinator.log.add(
+                "position_closed",
+                True,
+                f"Position closed: {pos.side} {pos.volume} {pos.symbol} (P&L {pos.profit})",
+                {"ticket": pos.ticket, "pnl": pos.profit},
+            )
+        return {"synced": True, **diff.to_dict()}
+
+    def _persist_closed(self, closed_positions) -> None:
+        try:
+            from backend.app.persistence import get_store
+            from backend.app.persistence.store import stored_trade_from_position
+
+            store = get_store()
+            now = _time.time()
+            for pos in closed_positions:
+                store.save_trade(stored_trade_from_position(pos, mode="live", closed_epoch=now))
+        except Exception as exc:  # noqa: BLE001 - persistence must never break sync
+            logger.debug(
+                "closed-position persistence skipped", extra={"context": {"error": str(exc)}}
+            )
 
 
 _service: LiveTradingService | None = None

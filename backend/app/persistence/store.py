@@ -75,6 +75,31 @@ class StoredTrade:
         return asdict(self)
 
 
+def stored_trade_from_position(
+    pos, *, mode: str = "live", closed_epoch: float | None = None
+) -> StoredTrade:
+    """Build a round-trip ``StoredTrade`` from a (now-closed) broker position.
+
+    Accepts any object exposing symbol/side/volume/price_open/price_current/
+    profit/time_epoch (e.g. a BrokerPosition) — duck-typed so this module stays
+    dependency-free. The exit price is the last-known current price and the P&L
+    is the broker's last-reported profit for the position.
+    """
+    return StoredTrade(
+        strategy_key=None,
+        symbol=getattr(pos, "symbol", "XAUUSD"),
+        side=getattr(pos, "side", "?"),
+        volume_lots=getattr(pos, "volume", 0.0) or 0.0,
+        entry_price=getattr(pos, "price_open", None),
+        exit_price=getattr(pos, "price_current", None),
+        pnl=getattr(pos, "profit", None),
+        exit_reason="closed",
+        mode=mode,
+        opened_epoch=getattr(pos, "time_epoch", None),
+        closed_epoch=closed_epoch,
+    )
+
+
 class TradeStore(ABC):
     """Storage contract for durable live records."""
 

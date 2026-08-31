@@ -30,7 +30,7 @@ export function Sidebar() {
     <nav className="sidebar">
       <div className="brand">
         <span className="dot" />
-        <span>XAUUSD Platform</span>
+        <span>RexDayTrades</span>
       </div>
       {NAV.map((item) => {
         const active = pathname === item.href;

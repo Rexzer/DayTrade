@@ -1,4 +1,5 @@
 ===============================================================================
+RexDayTrades
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
 Phase 8 — AI Assistant, Analytics & Final Polish (COMPLETE)
 ===============================================================================

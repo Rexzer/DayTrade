@@ -106,6 +106,15 @@ def execute(_op: str = Depends(require_operator)) -> dict:
     return get_live_service().execute_current_signal()
 
 
+@router.post("/sync")
+def sync() -> dict:
+    """Reconcile broker positions and journal any closes (incl. manual ones).
+
+    Read-only against the broker; safe to call without operator authorization.
+    """
+    return get_live_service().sync_positions()
+
+
 @router.get("/log")
 def log(limit: int = 100) -> dict:
     return get_live_service().execution_log(limit)

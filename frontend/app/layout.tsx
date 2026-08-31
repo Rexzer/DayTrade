@@ -3,9 +3,9 @@ import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "XAUUSD Trading Platform — Phase 1",
+  title: "RexDayTrades — XAUUSD Trading Intelligence",
   description:
-    "XAUUSD day-trading intelligence platform (analysis only). Live trading is not implemented in Phase 1.",
+    "RexDayTrades: an XAUUSD day-trading intelligence platform. Live execution is user-initiated and gated by an independent risk engine — never automatic.",
 };
 
 export default function RootLayout({
