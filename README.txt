@@ -1,10 +1,21 @@
 ===============================================================================
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
-Phase 5 — Paper Trading (SIMULATED — NO REAL ORDERS)
+Phase 6 — MetaTrader 5 Integration (READ-ONLY)
 ===============================================================================
 
-*** LIVE TRADING IS NOT IMPLEMENTED. NO REAL ORDERS CAN BE SENT. ***
-*** Paper trading is fully SIMULATED on live data; live mode stays locked. ***
+*** LIVE ORDER EXECUTION IS NOT IMPLEMENTED. NO REAL ORDERS CAN BE SENT. ***
+*** MetaTrader 5 integration is READ-ONLY; paper trading stays simulated. ***
+
+Phase 6 adds MetaTrader 5 connectivity behind a venue-agnostic
+ExecutionProvider abstraction. It reads account info, the actual broker XAUUSD
+symbol specifications, ticks, historical data, open positions, pending orders
+and trade history; synchronizes positions; validates orders (dry-run); and
+verifies the connected account. MT5 can also be used as a market-data source.
+
+Order EXECUTION remains DISABLED: every write operation raises, the
+LIVE_EXECUTION_ENABLED flag defaults to false, and the app refuses to start if
+it is set true. Live execution is a later phase, behind explicit backend
+authorization, account verification and a kill switch.
 
 Phase 5 adds a complete paper-trading environment that uses LIVE market data
 but simulates all execution:
@@ -200,9 +211,14 @@ user rule-builder); and the Phase 4 backtesting engine (execution costs, risk
 sizing, backtester mechanics for long/short entries/exits, metrics, drawdown,
 train/validation/OOS separation, walk-forward OOS-after-IS ordering, parameter
 sensitivity, Monte Carlo determinism, and a direct no-look-ahead slicing test);
-and the Phase 5 paper-trading engine (simulated fills, SL/TP, trailing stops,
+the Phase 5 paper-trading engine (simulated fills, SL/TP, trailing stops,
 partial exits, risk-based sizing, max-positions and daily-loss halts,
-signal-vs-trade rejection, controls, and per-strategy performance).
+signal-vs-trade rejection, controls, and per-strategy performance); and the
+Phase 6 MetaTrader 5 integration via a mocked client (connection failure,
+reconnection, account/symbol/tick/historical/positions/orders mapping, invalid
+symbol, order validation for invalid volume/SL/TP, broker rejection, position
+synchronization, the read-only market-data adapter, account verification, and
+proof that all write operations remain disabled).
 
 (Full API/integration tests that need FastAPI/SQLAlchemy run once
 backend/requirements.txt is installed in a networked environment.)
@@ -246,11 +262,27 @@ Use MARKET_DATA_PROVIDER=simulated to see the full pipeline without a network.
 
 
 -------------------------------------------------------------------------------
-9. METATRADER SETUP
+9. METATRADER SETUP (PHASE 6, READ-ONLY)
 -------------------------------------------------------------------------------
-Not applicable in Phase 1. MetaTrader 5 integration (account info, positions,
-orders, synchronisation) is added in Phase 5, with credentials held in a
-secret store and only a non-secret reference stored in the database.
+Requirements: the MetaTrader 5 terminal and the 'MetaTrader5' Python package
+on the BACKEND host (Windows, or Wine). Then set in .env:
+  MT5_LOGIN=<account number>
+  MT5_SERVER=<YourBroker-Demo>
+  MT5_PASSWORD=<password>     (env only; never logged or returned by the API)
+  MT5_SYMBOL=XAUUSD           (or your broker's gold symbol, e.g. XAUUSDm)
+  MT5_PATH=<optional path to terminal64.exe>
+
+Use it from the Data Connections page (Connect) or the API:
+  GET  /api/mt5/status     GET /api/mt5/account    GET /api/mt5/symbol
+  GET  /api/mt5/tick       GET /api/mt5/positions  GET /api/mt5/orders
+  GET  /api/mt5/history    GET /api/mt5/candles    GET /api/mt5/sync
+  GET  /api/mt5/verify     POST /api/mt5/check-order   (dry-run validation only)
+  POST /api/mt5/connect    POST /api/mt5/disconnect
+
+Order execution is disabled: there is NO endpoint that can place, modify or
+close an order. Broker contract specs are read from the actual account and are
+never assumed to be universal. Set MARKET_DATA_PROVIDER=mt5 to also use MT5 as
+the live data source.
 
 
 -------------------------------------------------------------------------------
@@ -330,16 +362,15 @@ It is already disabled and cannot be enabled in Phase 1. The safeguards:
 
 
 -------------------------------------------------------------------------------
-17. CURRENT LIMITATIONS (PHASE 5)
+17. CURRENT LIMITATIONS (PHASE 6)
 -------------------------------------------------------------------------------
-  * Paper trading is fully simulated; there is still NO MetaTrader/broker
-    connection and NO real-money execution.
-  * Paper auto-trading acts on the primary timeframe (1h) close and the best
-    confirmed signal; fills use a mid-price model with adverse costs.
-  * Backtests/paper trading are only as good as the input data the active
-    provider supplies (labelled 'simulated' offline, or a real feed).
+  * MetaTrader 5 integration is READ-ONLY. There is NO order execution, and it
+    requires the MT5 terminal + MetaTrader5 package on the backend host (so it
+    cannot connect in a headless/Linux-only or offline environment).
+  * Paper trading remains fully simulated; no real-money execution exists.
   * Interactive pages: Dashboard, Settings, Strategies, Strategy Builder,
-    Backtesting and Paper Trading. Remaining pages arrive in later phases.
+    Backtesting, Paper Trading and Data Connections. Live Trading arrives in a
+    later phase.
 
 
 -------------------------------------------------------------------------------

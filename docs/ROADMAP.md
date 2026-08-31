@@ -48,9 +48,14 @@ halt); explicit SIGNAL-vs-TRADE distinction; full journal; and per-strategy
 performance comparison. Paper-trading mode is unlocked (live stays locked).
 **No real orders are possible — every fill is simulated.**
 
-## Phase 5 — MetaTrader
-MT5 account connection, account info, positions, orders and trade
-synchronisation. Secret-store integration for credentials.
+## Phase 6 — MetaTrader 5 Integration ✅ (this deliverable)
+Read-only MT5 connectivity via a venue-agnostic ExecutionProvider abstraction
+and an injectable, fully-mockable connector: account info, real broker XAUUSD
+symbol specs (never assumed), ticks, historical data, positions, orders and
+trade history; position synchronization; dry-run order validation; account
+verification; and MT5 as a selectable market-data source. Order execution is
+hard-disabled (writes raise; `LIVE_EXECUTION_ENABLED` defaults false and the
+app refuses to start if true). **No orders can be placed.**
 
 ## Phase 6 — Live Execution
 Live order execution, position management, hard risk enforcement, kill switch

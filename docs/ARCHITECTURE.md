@@ -1,7 +1,40 @@
 # Architecture — XAUUSD Trading Platform
 
-> Phase 5 (paper trading). Analysis + PAPER trading (simulated on live data).
-> No live trading, no automated real-money execution, no real broker connection.
+> Phase 6 (MetaTrader 5 integration, read-only). Analysis + PAPER trading. MT5
+> connectivity for reads/verification only. No live order execution.
+
+## Phase 6 addendum — MetaTrader 5 integration (read-only)
+
+The `execution_engine/` package gains a venue-agnostic execution abstraction
+and a MetaTrader 5 connector — all reads, no writes:
+
+```
+ExecutionProvider (provider.py)  connect/disconnect/is_connected
+        │  reads: account · symbol spec · tick · positions · orders
+        │  validation: check_order (dry-run) — validate_order() is pure
+        │  writes: send/modify/close -> _require_live() ALWAYS raises (Phase 7)
+        ▼
+MT5ExecutionProvider (mt5_connector.py)  wraps an INJECTABLE MetaTrader5 client
+        ├── MT5MarketDataProvider (mt5_market_data.py)  MARKET_DATA_PROVIDER=mt5
+        ├── PositionSynchronizer (sync.py)  opened/closed/modified diffs
+        └── build_account_verification (verification.py)  broker/account/specs
+```
+
+Safety: writes are disabled in code (`_require_live` raises regardless of any
+flag); `LIVE_EXECUTION_ENABLED` defaults false and the app refuses to start if
+it is true. Broker contract specs (digits, point, tick value, min/max/step lot)
+are read from the ACTUAL account — never assumed universal. Credentials come
+from the environment/secret store and are never logged or returned by the API.
+
+Backend: `backend/app/mt5/service.py` + read-only routes under `/api/mt5/*`
+(status, connect/disconnect, account, symbol, tick, positions, orders, history,
+candles, sync, verify, check-order). `/api/mt5/execution/status` exists only to
+report that execution is disabled. MT5 can also be selected as the market-data
+source. Frontend: a **Data Connections** page shows MT5 status + account
+verification + XAUUSD contract specs.
+
+---
+
 
 ## Phase 5 addendum — Paper trading engine
 

@@ -88,6 +88,26 @@ class Settings:
     enable_live_trading: bool = field(
         default_factory=lambda: _get_bool("ENABLE_LIVE_TRADING", False)
     )
+    # Live ORDER execution via a broker. Implemented only in Phase 7; the
+    # execution provider refuses writes regardless of this flag in Phase 6.
+    live_execution_enabled: bool = field(
+        default_factory=lambda: _get_bool("LIVE_EXECUTION_ENABLED", False)
+    )
+
+    # --- MetaTrader 5 (Phase 6, read-only) ----------------------------------
+    # The password is read from the environment only and is NEVER logged or
+    # returned by the API. Prefer a secret store in production.
+    mt5_login: int | None = field(
+        default_factory=lambda: (int(os.getenv("MT5_LOGIN")) if os.getenv("MT5_LOGIN") else None)
+    )
+    mt5_server: str | None = field(default_factory=lambda: os.getenv("MT5_SERVER") or None)
+    mt5_path: str | None = field(default_factory=lambda: os.getenv("MT5_PATH") or None)
+    mt5_symbol: str = field(default_factory=lambda: os.getenv("MT5_SYMBOL", "XAUUSD"))
+
+    @property
+    def mt5_password(self) -> str | None:
+        # Not stored on the instance to reduce accidental exposure in reprs/logs.
+        return os.getenv("MT5_PASSWORD") or None
 
     @property
     def is_production(self) -> bool:
@@ -111,10 +131,15 @@ class Settings:
         _placeholder_secret = "change-me-to-a-long-random-string"
         if self.is_production and (not self.secret_key or self.secret_key == _placeholder_secret):
             problems.append("SECRET_KEY must be set to a strong value in production.")
-        # Phase 1 invariant: trading must not be enabled.
+        # Safety invariant: live trading/execution must not be enabled yet.
         if self.enable_live_trading:
             problems.append(
-                "ENABLE_LIVE_TRADING must be false in Phase 1; live trading is not implemented."
+                "ENABLE_LIVE_TRADING must be false; automated live trading is not implemented."
+            )
+        if self.live_execution_enabled:
+            problems.append(
+                "LIVE_EXECUTION_ENABLED must be false until Phase 7; MetaTrader "
+                "integration in Phase 6 is read-only and refuses all order writes."
             )
         return problems
 
