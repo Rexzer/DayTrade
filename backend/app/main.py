@@ -26,6 +26,7 @@ from backend.app.api.routes import (
 )
 from backend.app.config import get_settings
 from backend.app.core.logging_config import configure_logging, get_logger
+from backend.app.market_data import get_market_service
 from backend.app.websocket.manager import manager
 
 logger = get_logger("app")
@@ -48,18 +49,35 @@ async def lifespan(app: FastAPI):
             )
     logger.info(
         "Application starting",
-        extra={"context": {"phase": 1, "mode": "analysis_only", "env": settings.app_env}},
+        extra={
+            "context": {
+                "phase": 2,
+                "mode": "analysis_only",
+                "env": settings.app_env,
+                "market_data_provider": settings.market_data_provider,
+            }
+        },
     )
-    yield
-    logger.info("Application shutting down")
+
+    # Start the real-time market-data pipeline (no-op if provider is "none").
+    market = get_market_service()
+    await market.start()
+    try:
+        yield
+    finally:
+        await market.stop()
+        logger.info("Application shutting down")
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
-        description="XAUUSD trading intelligence platform — Phase 1 (analysis only).",
+        version="0.2.0",
+        description=(
+            "XAUUSD trading intelligence platform — Phase 2 "
+            "(real-time market data; analysis only, no trading)."
+        ),
         lifespan=lifespan,
     )
 
@@ -88,9 +106,10 @@ def create_app() -> FastAPI:
     def root() -> dict:
         return {
             "app": settings.app_name,
-            "phase": 1,
+            "phase": 2,
             "mode": "analysis_only",
             "live_trading_implemented": False,
+            "market_data_provider": settings.market_data_provider,
             "docs": "/docs",
         }
 
@@ -113,6 +132,23 @@ def create_app() -> FastAPI:
                 await websocket.receive_text()
         except WebSocketDisconnect:
             await manager.disconnect(websocket)
+
+    @app.websocket("/ws/market")
+    async def ws_market(websocket: WebSocket) -> None:
+        """Stream real-time ticks, closed candles and feed health.
+
+        The MarketDataService broadcasts to all connected clients. On connect
+        we send the current status so the UI can render immediately (honestly
+        "disconnected" if no provider is configured).
+        """
+        market = get_market_service()
+        await market.manager.connect(websocket)
+        try:
+            await websocket.send_json({"type": "status", **market.status()})
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            await market.manager.disconnect(websocket)
 
     return app
 

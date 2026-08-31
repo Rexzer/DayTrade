@@ -1,7 +1,53 @@
 # Architecture — XAUUSD Trading Platform
 
-> Phase 1 (foundation). Analysis-only. No live trading, no automated
-> execution, no real broker connection.
+> Phase 2 (real-time market data). Analysis-only. No live trading, no
+> automated execution, no real broker connection.
+
+## Phase 2 addendum — Real-time market-data engine
+
+The `market_data/` package gains a full real-time pipeline (all pure Python,
+provider-independent):
+
+```
+Provider (simulated | rest | broker...)   implements MarketDataProvider
+        │  ticks
+        ▼
+CandleAggregator (per timeframe)   UTC bucketing; dedup; out-of-order;
+        │  candles                 gap detection (missing_buckets)
+        ├──────────────► FeedHealthMonitor  LIVE/DELAYED/STALE/DISCONNECTED
+        │                                   + signal gating (signals_allowed)
+        ▼
+MarketDataService (backend/app/market_data)
+        ├─ ReconnectionController  detect drop → backoff → BACKFILL → LIVE
+        ├─ CandleRepository        PostgreSQL storage, duplicate-proof
+        └─ ConnectionManager       broadcasts to /ws/market
+                                   { tick | candle_closed | health | status }
+```
+
+Key modules:
+- `market_data/tick.py` — `Tick` (bid/ask/last/volume; derived price/spread).
+- `market_data/timeframes.py` — UTC-aligned bucket maths + gap enumeration.
+- `market_data/candle_engine.py` — `CandleAggregator` (the core).
+- `market_data/health.py` — `FeedHealthMonitor` (stale → signals halted).
+- `market_data/reconnection.py` — `ReconnectionController` state machine.
+- `market_data/symbols.py` — broker symbol mapping to canonical XAUUSD.
+- `market_data/simulated_provider.py` — labelled synthetic feed (offline dev).
+- `market_data/providers/rest_polling.py` — generic real HTTP quote provider.
+- `backend/app/market_data/service.py` — async orchestrator + broadcaster.
+- `backend/app/db/models.py::MarketCandle` + `candle_repository.py` — storage.
+
+New endpoints: `GET /api/market/status|snapshot|candles|timeframes|symbols`,
+`POST /api/market/symbol`, and `WS /ws/market`.
+
+Failsafe: when the feed is STALE or DISCONNECTED, `FeedHealthMonitor.
+signals_allowed()` returns False, and the reconnection machine refuses to
+report LIVE until backfill completes — so the platform never acts on, or
+silently resumes with, incomplete data. Simulated data is always tagged
+`source="simulated"` and surfaced as such in the UI.
+
+---
+
+## Phase 1 foundation (unchanged)
 
 ## 1. High-level component diagram
 

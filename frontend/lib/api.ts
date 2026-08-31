@@ -79,3 +79,49 @@ export interface NewsResponse {
   next_high_impact_event: unknown | null;
   status: string;
 }
+
+// ---- Market data (Phase 2) ----
+export interface FeedHealth {
+  status: string; // live | delayed | stale | disconnected
+  last_update_epoch: number | null;
+  age_seconds: number | null;
+  signals_allowed: boolean;
+  source: string | null;
+}
+
+export interface MarketStatus {
+  symbol: string;
+  broker_symbol: string;
+  source: string;
+  provider_kind: string;
+  connected: boolean;
+  connection_state: string;
+  health: FeedHealth;
+  last_update_epoch: number | null;
+  simulated: boolean;
+}
+
+export interface CandleDTO {
+  timeframe: string;
+  open_time_epoch: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+}
+
+export interface CandlesResponse {
+  symbol: string;
+  timeframe: string;
+  connected: boolean;
+  source: string;
+  simulated: boolean;
+  candles: CandleDTO[];
+}
+
+export interface SymbolsResponse {
+  canonical: string;
+  active_broker_symbol: string;
+  known_aliases: string[];
+}

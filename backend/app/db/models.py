@@ -13,9 +13,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -250,3 +252,32 @@ class SystemLog(Base, TimestampMixin):
     category: Mapped[str] = mapped_column(String(48), default="general", nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[str | None] = mapped_column(Text)  # JSON-serialized
+
+
+class MarketCandle(Base, TimestampMixin):
+    """Historical OHLC(V) candle storage (Phase 2).
+
+    A candle is uniquely identified by (symbol, timeframe, open_time_epoch),
+    which prevents duplicate candles from being written. ``open_time_epoch`` is
+    the UTC-aligned bucket start in Unix seconds. ``source`` records which
+    provider produced the data (e.g. "simulated", "rest", broker name) so the
+    origin is always auditable — never presented as anonymous "real" data.
+    """
+
+    __tablename__ = "market_candles"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(24), default="XAUUSD", nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(8), nullable=False)
+    open_time_epoch: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    open: Mapped[float] = mapped_column(Numeric(18, 5), nullable=False)
+    high: Mapped[float] = mapped_column(Numeric(18, 5), nullable=False)
+    low: Mapped[float] = mapped_column(Numeric(18, 5), nullable=False)
+    close: Mapped[float] = mapped_column(Numeric(18, 5), nullable=False)
+    volume: Mapped[float | None] = mapped_column(Numeric(18, 2))
+    source: Mapped[str | None] = mapped_column(String(48))
+
+    __table_args__ = (
+        UniqueConstraint("symbol", "timeframe", "open_time_epoch", name="uq_candle_symbol_tf_time"),
+        Index("ix_candle_symbol_tf_time", "symbol", "timeframe", "open_time_epoch"),
+    )

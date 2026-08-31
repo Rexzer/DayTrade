@@ -1,32 +1,37 @@
-"""Market-data endpoints (Phase 1: null provider only)."""
+"""Market-data endpoints (Phase 2).
+
+Exposes real-time status, quotes, candles, symbol mapping and connection
+controls backed by the MarketDataService. Still MARKET DATA ONLY — no orders.
+When the provider is "none", every response honestly reports disconnected and
+carries no prices.
+"""
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from backend.app.core.status import ConnectionStatus, DataStatus
-from market_data import NullMarketDataProvider, Timeframe
+from backend.app.core.status import ConnectionStatus
+from backend.app.market_data import get_market_service
+from market_data import Timeframe
 
 router = APIRouter(prefix="/market", tags=["market"])
 
-# Phase 1 uses the null provider — no fabricated prices.
-_provider = NullMarketDataProvider()
+
+@router.get("/status")
+def status() -> dict:
+    """Data source, freshness and connection state (source/last-update/status)."""
+    return get_market_service().status()
 
 
 @router.get("/snapshot")
 def snapshot(symbol: str = "XAUUSD") -> dict:
-    snap = _provider.get_snapshot(symbol)
-    return {
-        **snap.to_dict(),
-        "connection_status": (
-            ConnectionStatus.CONNECTED.value
-            if _provider.is_connected()
-            else ConnectionStatus.DISCONNECTED.value
-        ),
-        "data_status": (
-            DataStatus.LIVE.value if _provider.is_connected() else DataStatus.DISCONNECTED.value
-        ),
-    }
+    svc = get_market_service()
+    snap = svc.snapshot()
+    connected = bool(snap.get("connected"))
+    snap["connection_status"] = (
+        ConnectionStatus.CONNECTED.value if connected else ConnectionStatus.DISCONNECTED.value
+    )
+    return snap
 
 
 @router.get("/timeframes")
@@ -35,16 +40,31 @@ def timeframes() -> dict:
 
 
 @router.get("/candles")
-def candles(symbol: str = "XAUUSD", timeframe: str = "15m", limit: int = 500) -> dict:
+def candles(symbol: str = "XAUUSD", timeframe: str = "15m", limit: int = 300) -> dict:
     try:
         tf = Timeframe(timeframe)
     except ValueError:
         tf = Timeframe.M15
-    data = _provider.get_candles(symbol, tf, limit=limit)
+    svc = get_market_service()
+    data = svc.get_candles(tf, limit=limit)
+    st = svc.status()
     return {
         "symbol": symbol,
         "timeframe": tf.value,
-        "connected": _provider.is_connected(),
-        "candles": [c.to_dict() for c in data],
-        "note": "No market-data provider connected in Phase 1.",
+        "connected": st["connected"],
+        "source": st["source"],
+        "simulated": st["simulated"],
+        "candles": data,
     }
+
+
+@router.get("/symbols")
+def symbols() -> dict:
+    return get_market_service().symbols()
+
+
+@router.post("/symbol")
+def set_symbol(broker_symbol: str) -> dict:
+    if not broker_symbol.strip():
+        raise HTTPException(status_code=400, detail="broker_symbol must not be empty.")
+    return get_market_service().set_symbol(broker_symbol)

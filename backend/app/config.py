@@ -58,6 +58,28 @@ class Settings:
         default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379/0")
     )
 
+    # --- Market data (Phase 2) ----------------------------------------------
+    # Provider: "none" (null), "simulated" (labelled synthetic feed for offline
+    # dev), or "rest" (generic HTTP quote poller — needs network + config).
+    market_data_provider: str = field(
+        default_factory=lambda: os.getenv("MARKET_DATA_PROVIDER", "none")
+    )
+    market_data_symbol: str = field(
+        default_factory=lambda: os.getenv("MARKET_DATA_SYMBOL", "XAUUSD")
+    )
+    market_tick_interval_seconds: float = field(
+        default_factory=lambda: float(os.getenv("MARKET_TICK_INTERVAL_SECONDS", "1.0"))
+    )
+    data_delayed_after_seconds: float = field(
+        default_factory=lambda: float(os.getenv("DATA_DELAYED_AFTER_SECONDS", "3.0"))
+    )
+    data_stale_after_seconds: float = field(
+        default_factory=lambda: float(os.getenv("DATA_STALE_AFTER_SECONDS", "10.0"))
+    )
+    market_history_candles: int = field(
+        default_factory=lambda: _get_int("MARKET_HISTORY_CANDLES", 300)
+    )
+
     # Hard safety locks. Phase 1 refuses to honour these even if set true;
     # they are surfaced so operators can see the intended future switches.
     enable_paper_trading: bool = field(
