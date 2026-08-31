@@ -7,9 +7,10 @@ There is NO autonomous execution. A restart disables live trading.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from backend.app.api.deps import require_operator
 from backend.app.live import get_live_service
 
 router = APIRouter(prefix="/live", tags=["live"])
@@ -25,12 +26,12 @@ class ConfirmRequest(BaseModel):
 
 
 @router.post("/confirm")
-def confirm(req: ConfirmRequest) -> dict:
+def confirm(req: ConfirmRequest, _op: str = Depends(require_operator)) -> dict:
     return get_live_service().set_confirmations(req.confirmations)
 
 
 @router.post("/enable")
-def enable() -> dict:
+def enable(_op: str = Depends(require_operator)) -> dict:
     """Arm live trading. Fails unless every requirement is met."""
     result = get_live_service().enable()
     if result.get("error"):
@@ -77,7 +78,7 @@ class RiskRequest(BaseModel):
 
 
 @router.post("/risk")
-def set_risk(req: RiskRequest) -> dict:
+def set_risk(req: RiskRequest, _op: str = Depends(require_operator)) -> dict:
     result = get_live_service().set_risk(req.model_dump(exclude_none=True))
     if result.get("error"):
         raise HTTPException(status_code=422, detail=result)
@@ -90,7 +91,7 @@ def reset_risk() -> dict:
 
 
 @router.post("/execute")
-def execute() -> dict:
+def execute(_op: str = Depends(require_operator)) -> dict:
     """USER-INITIATED single execution of the best current confirmed signal."""
     return get_live_service().execute_current_signal()
 
@@ -98,3 +99,9 @@ def execute() -> dict:
 @router.get("/log")
 def log(limit: int = 100) -> dict:
     return get_live_service().execution_log(limit)
+
+
+@router.get("/history")
+def history(limit: int = 100) -> dict:
+    """Durably-persisted live signals, orders and trades."""
+    return get_live_service().history(limit)

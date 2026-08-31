@@ -310,10 +310,17 @@ Use it from the Data Connections page (Connect) or the API:
   GET  /api/mt5/verify     POST /api/mt5/check-order   (dry-run validation only)
   POST /api/mt5/connect    POST /api/mt5/disconnect
 
-Order execution is disabled: there is NO endpoint that can place, modify or
-close an order. Broker contract specs are read from the actual account and are
-never assumed to be universal. Set MARKET_DATA_PROVIDER=mt5 to also use MT5 as
-the live data source.
+Broker contract specs are read from the actual account and are never assumed to
+be universal. Set MARKET_DATA_PROVIDER=mt5 to also use MT5 as the live data
+source.
+
+Before connecting, verify your setup on the MT5 host with the standalone
+checker (self-contained, read-only, never prints your password):
+    python scripts/check_mt5.py
+Then follow docs/GO_LIVE_CHECKLIST.md (demo first). Dangerous live endpoints are
+guarded by an operator credential (LIVE_API_TOKEN header or a bearer JWT).
+Live signals/orders and closed (paper) trades are persisted to PostgreSQL and
+are available at GET /api/live/history for durable analytics.
 
 
 -------------------------------------------------------------------------------

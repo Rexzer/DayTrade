@@ -37,10 +37,16 @@ Interactive docs (OpenAPI/Swagger) are served at `/docs`.
 
 ## Live execution (user-initiated, authorized)
 - `GET /api/live/status | log`
+- `GET /api/live/history` — durably-persisted signals / orders / trades
 - `POST /api/live/confirm | enable | disable`
 - `POST /api/live/kill | kill/clear`
 - `POST /api/live/risk | risk/reset`
 - `POST /api/live/execute` — execute the best current confirmed signal (manual)
+
+**Operator authorization:** the dangerous endpoints (`confirm`, `enable`,
+`risk`, `execute`) require an operator credential — either an `X-Operator-Token`
+header matching the backend `LIVE_API_TOKEN`, or a valid bearer JWT from
+`/api/auth/login`. They fail closed (HTTP 401) if neither is configured.
 
 ## AI assistant
 - `POST /api/assistant/ask` `{ "question": "..." }` · `GET /api/assistant/examples`
