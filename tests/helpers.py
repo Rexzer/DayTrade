@@ -159,10 +159,13 @@ class FakeMT5:
         init_ok: bool = True,
         symbol: str = "XAUUSDm",
         order_check_retcode: int = 0,
+        order_send_retcode: int = 10009,
     ) -> None:
         self.init_ok = init_ok
         self.symbol = symbol
         self.order_check_retcode = order_check_retcode
+        self.order_send_retcode = order_send_retcode
+        self.last_order_request = None
         self._positions: tuple = (
             _NS(
                 ticket=1,
@@ -275,3 +278,13 @@ class FakeMT5:
 
     def order_check(self, request):
         return _NS(retcode=self.order_check_retcode, comment="checked")
+
+    def order_send(self, request):
+        # 10009 = TRADE_RETCODE_DONE. Configurable to simulate rejection.
+        self.last_order_request = request
+        return _NS(
+            retcode=self.order_send_retcode,
+            order=987654,
+            price=request.get("price", 0.0) if isinstance(request, dict) else 0.0,
+            comment="done" if self.order_send_retcode == 10009 else "rejected",
+        )

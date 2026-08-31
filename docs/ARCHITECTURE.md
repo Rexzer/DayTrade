@@ -1,7 +1,46 @@
 # Architecture — XAUUSD Trading Platform
 
-> Phase 6 (MetaTrader 5 integration, read-only). Analysis + PAPER trading. MT5
-> connectivity for reads/verification only. No live order execution.
+> Phase 7 (live execution + independent risk engine). Live execution is
+> user-initiated only, gated by an explicit authorization and the authoritative
+> risk engine. The platform never auto-executes trades.
+
+## Phase 7 addendum — Live execution + independent risk engine
+
+The mandatory pipeline (no shortcuts):
+
+```
+Strategy Engine → Signal → AUTHORIZATION → RISK ENGINE → ORDER VALIDATION →
+duplicate check → EXECUTION (MetaTrader 5) → result verification → log
+```
+
+- `execution_engine/authorization.py::LiveAuthorization` — live orders require
+  ALL of: `LIVE_EXECUTION_ENABLED` (backend), the six user confirmations, an
+  explicit ARM action, and no active kill switch. It is in-memory, so a restart
+  disables live trading. The frontend alone can never authorize execution.
+- `risk_engine/live_risk.py::LiveRiskEngine` — the INDEPENDENT, authoritative
+  gate. Broker-spec position sizing (tick size/value) + all hard limits
+  (per-trade risk, daily/weekly loss, drawdown, max open / max XAUUSD positions,
+  trades/day, consecutive losses) + spread / news / data / execution failsafes.
+  Daily-loss and drawdown halts LATCH and require a manual reset. The strategy
+  engine cannot bypass it — the coordinator needs an approving RiskDecision.
+- `execution_engine/coordinator.py::ExecutionCoordinator` — the ONLY path to a
+  live order. Records every stage in an execution log, prevents duplicate
+  submissions, and NEVER assumes success (only an explicit broker DONE result
+  counts). Provides the kill switch (stop new trades immediately; optionally
+  close positions / cancel pending first).
+- `MT5ExecutionProvider` now implements authorized `send_order` / `modify_order`
+  / `close_position` (order_send mapping + result verification), gated by the
+  authorization.
+
+Backend: `backend/app/live/service.py` + `/api/live/*` routes (status, confirm,
+enable/disable, kill + kill/clear, risk + risk/reset, execute, log). Execution
+is USER-INITIATED (`/live/execute`); there is no autonomous loop
+(`ENABLE_LIVE_TRADING` stays false and blocks startup if set). Frontend: a Live
+Trading page with the confirmation checklist, ARM/disarm, a prominent emergency
+stop, risk state, and the execution log.
+
+---
+
 
 ## Phase 6 addendum — MetaTrader 5 integration (read-only)
 

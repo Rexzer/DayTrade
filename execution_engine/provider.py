@@ -231,9 +231,13 @@ class ExecutionProvider(ABC):
 
     name: str = "abstract"
 
-    # Whether a human/operator has authorized live execution at the config
-    # layer. Even when True, Phase 6 keeps execution disabled (see _require_live).
+    # Legacy flag retained for compatibility; it does NOT unlock execution.
     live_enabled: bool = False
+
+    # The single authorization gate. Writes are refused unless this is set to a
+    # LiveAuthorization whose is_authorized() returns True. Default None => all
+    # writes disabled (Phase 6 semantics preserved).
+    authorization: object | None = None
 
     # --- connection ----------------------------------------------------------
     @abstractmethod
@@ -265,23 +269,31 @@ class ExecutionProvider(ABC):
     @abstractmethod
     def check_order(self, request: ExecOrderRequest) -> OrderCheckResult: ...
 
-    # --- writes (DISABLED until Phase 7) ------------------------------------
+    # --- writes (require explicit authorization) ----------------------------
+    def _require_authorized(self) -> None:
+        auth = self.authorization
+        if auth is None or not auth.is_authorized():
+            raise LiveExecutionDisabledError(
+                "Live order execution is NOT authorized. It requires an explicit "
+                "authorization: LIVE_EXECUTION_ENABLED at the backend, all user "
+                "confirmations, an explicit arm action, and no active kill switch."
+            )
+
+    # Backwards-compatible alias.
     def _require_live(self) -> None:
-        raise LiveExecutionDisabledError(
-            "Live order execution is DISABLED. It is implemented only in Phase 7, "
-            "behind explicit backend authorization, account verification and a "
-            "kill switch. Phase 6 provides MetaTrader connectivity for reads and "
-            "dry-run validation only."
-        )
+        self._require_authorized()
 
     def send_order(self, request: ExecOrderRequest) -> OrderResult:
-        self._require_live()
+        self._require_authorized()
+        raise NotImplementedError("This provider does not implement send_order.")
 
     def modify_order(self, ticket: int, *, stop_loss=None, take_profit=None) -> OrderResult:
-        self._require_live()
+        self._require_authorized()
+        raise NotImplementedError("This provider does not implement modify_order.")
 
     def close_position(self, ticket: int, volume: float | None = None) -> OrderResult:
-        self._require_live()
+        self._require_authorized()
+        raise NotImplementedError("This provider does not implement close_position.")
 
 
 # --- Order validation (pure) -------------------------------------------------

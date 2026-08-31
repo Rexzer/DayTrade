@@ -24,6 +24,7 @@ from execution_engine.provider import (
     ExecutionProvider,
     InvalidSymbolError,
     OrderCheckResult,
+    OrderResult,
     validate_order,
 )
 from market_data.provider import Candle, Timeframe
@@ -351,6 +352,105 @@ class MT5ExecutionProvider(ExecutionProvider):
             "sl": request.stop_loss,
             "tp": request.take_profit,
         }
+
+    # --- writes (require explicit authorization; verify every result) --------
+    def _const(self, name: str, fallback: int) -> int:
+        return int(getattr(self._client, name, fallback))
+
+    def _order_type_const(self, side: str, order_type: str) -> int:
+        mapping = {
+            ("buy", "market"): ("ORDER_TYPE_BUY", 0),
+            ("sell", "market"): ("ORDER_TYPE_SELL", 1),
+            ("buy", "limit"): ("ORDER_TYPE_BUY_LIMIT", 2),
+            ("sell", "limit"): ("ORDER_TYPE_SELL_LIMIT", 3),
+            ("buy", "stop"): ("ORDER_TYPE_BUY_STOP", 4),
+            ("sell", "stop"): ("ORDER_TYPE_SELL_STOP", 5),
+        }
+        name, fallback = mapping.get((side, order_type), ("ORDER_TYPE_BUY", 0))
+        return self._const(name, fallback)
+
+    def _parse_result(self, res) -> OrderResult:
+        retcode = _g(res, "retcode")
+        # NEVER assume success — only an explicit DONE retcode counts.
+        ok = retcode in _OK_RETCODES
+        return OrderResult(
+            ok=ok,
+            order_id=_g(res, "order"),
+            price=_g(res, "price"),
+            retcode=retcode,
+            comment=_g(res, "comment"),
+        )
+
+    def send_order(self, request: ExecOrderRequest) -> OrderResult:
+        self._require_authorized()  # raises unless explicitly authorized
+        self._require_connected()
+        price = request.price
+        if price is None:
+            tick = self._client.symbol_info_tick(request.symbol)
+            price = _g(tick, "ask") if request.side == "buy" else _g(tick, "bid")
+        action = (
+            self._const("TRADE_ACTION_DEAL", 1)
+            if request.order_type == "market"
+            else self._const("TRADE_ACTION_PENDING", 5)
+        )
+        mt5_request = {
+            "action": action,
+            "symbol": request.symbol,
+            "volume": float(request.volume),
+            "type": self._order_type_const(request.side, request.order_type),
+            "price": price,
+            "sl": request.stop_loss or 0.0,
+            "tp": request.take_profit or 0.0,
+            "deviation": 20,
+            "magic": 770001,
+            "comment": "xauusd-platform",
+        }
+        try:
+            res = self._client.order_send(mt5_request)
+        except Exception as exc:  # noqa: BLE001
+            return OrderResult(ok=False, comment=f"order_send raised: {exc}")
+        if res is None:
+            return OrderResult(ok=False, comment="order_send returned None")
+        return self._parse_result(res)
+
+    def modify_order(self, ticket: int, *, stop_loss=None, take_profit=None) -> OrderResult:
+        self._require_authorized()
+        self._require_connected()
+        mt5_request = {
+            "action": self._const("TRADE_ACTION_SLTP", 6),
+            "position": int(ticket),
+            "sl": stop_loss or 0.0,
+            "tp": take_profit or 0.0,
+        }
+        res = self._client.order_send(mt5_request)
+        if res is None:
+            return OrderResult(ok=False, comment="order_send returned None")
+        return self._parse_result(res)
+
+    def close_position(self, ticket: int, volume: float | None = None) -> OrderResult:
+        self._require_authorized()
+        self._require_connected()
+        pos = next((p for p in self.get_positions() if p.ticket == int(ticket)), None)
+        if pos is None:
+            return OrderResult(ok=False, comment=f"Position {ticket} not found.")
+        close_side = "sell" if pos.side == "buy" else "buy"
+        tick = self._client.symbol_info_tick(pos.symbol)
+        price = _g(tick, "bid") if close_side == "sell" else _g(tick, "ask")
+        mt5_request = {
+            "action": self._const("TRADE_ACTION_DEAL", 1),
+            "symbol": pos.symbol,
+            "volume": float(volume or pos.volume),
+            "type": self._order_type_const(close_side, "market"),
+            "position": int(ticket),
+            "price": price,
+            "deviation": 20,
+            "magic": 770001,
+            "comment": "xauusd-platform-close",
+        }
+        res = self._client.order_send(mt5_request)
+        if res is None:
+            return OrderResult(ok=False, comment="order_send returned None")
+        return self._parse_result(res)
 
 
 def _none_if_zero(value):

@@ -13,7 +13,7 @@ const NAV: Array<{ href: string; label: string; ready: boolean }> = [
   { href: "/strategy-builder", label: "Strategy Builder", ready: true },
   { href: "/backtesting", label: "Backtesting", ready: true },
   { href: "/paper-trading", label: "Paper Trading", ready: true },
-  { href: "/live-trading", label: "Live Trading", ready: false },
+  { href: "/live-trading", label: "Live Trading", ready: true },
   { href: "/journal", label: "Trade Journal", ready: false },
   { href: "/analytics", label: "Performance Analytics", ready: false },
   { href: "/news", label: "Market News", ready: false },
