@@ -57,6 +57,18 @@ verification; and MT5 as a selectable market-data source. Order execution is
 hard-disabled (writes raise; `LIVE_EXECUTION_ENABLED` defaults false and the
 app refuses to start if true). **No orders can be placed.**
 
+## Phase 7 — Live Execution & Risk Engine ✅ (this deliverable)
+The mandatory pipeline Strategy → Signal → Risk → Execution → MetaTrader 5.
+An INDEPENDENT, authoritative risk engine (broker-spec sizing + all hard limits
++ spread/news/data/execution failsafes + latched daily/weekly/drawdown halts
+requiring manual reset) that the strategy engine cannot bypass; an explicit,
+restart-safe live authorization (config flag + six confirmations + arm + kill
+switch); an execution coordinator that validates orders, prevents duplicate
+submissions, verifies every broker result (never assumes success), and logs the
+full chain; authorized MT5 order send/modify/close; and a prominent emergency
+stop. Live execution is USER-INITIATED only — the platform never auto-executes
+trades, and a restart disables live trading.
+
 ## Phase 6 — Live Execution
 Live order execution, position management, hard risk enforcement, kill switch
 and execution monitoring — behind explicit multi-step user confirmation.

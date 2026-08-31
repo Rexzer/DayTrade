@@ -1,21 +1,31 @@
 ===============================================================================
 XAUUSD DAY-TRADING INTELLIGENCE & AUTOMATION PLATFORM
-Phase 6 — MetaTrader 5 Integration (READ-ONLY)
+Phase 7 — Live Execution & Independent Risk Engine
 ===============================================================================
 
-*** LIVE ORDER EXECUTION IS NOT IMPLEMENTED. NO REAL ORDERS CAN BE SENT. ***
-*** MetaTrader 5 integration is READ-ONLY; paper trading stays simulated. ***
+*** LIVE EXECUTION IS REAL-MONEY AND USER-INITIATED ONLY. ***
+*** The platform NEVER auto-executes trades. A restart disables live trading. ***
 
-Phase 6 adds MetaTrader 5 connectivity behind a venue-agnostic
-ExecutionProvider abstraction. It reads account info, the actual broker XAUUSD
-symbol specifications, ticks, historical data, open positions, pending orders
-and trade history; synchronizes positions; validates orders (dry-run); and
-verifies the connected account. MT5 can also be used as a market-data source.
+Phase 7 adds the live execution system behind the mandatory pipeline:
+  Strategy -> Signal -> Risk Engine -> Execution -> MetaTrader 5 -> Broker.
 
-Order EXECUTION remains DISABLED: every write operation raises, the
-LIVE_EXECUTION_ENABLED flag defaults to false, and the app refuses to start if
-it is set true. Live execution is a later phase, behind explicit backend
-authorization, account verification and a kill switch.
+  * INDEPENDENT, authoritative risk engine: broker-spec position sizing plus
+    all hard limits (per-trade risk, daily/weekly loss, drawdown, max open and
+    max XAUUSD positions, trades/day, consecutive losses) and spread/news/data/
+    execution failsafes. Daily-loss and drawdown halts LATCH and require a
+    manual reset. The strategy engine cannot bypass the risk engine.
+  * Explicit live authorization: LIVE_EXECUTION_ENABLED (backend) + six user
+    confirmations + an explicit ARM action + no active kill switch. In-memory,
+    so an application restart disables live trading (post-restart safety).
+  * Execution coordinator: validates orders (MT5 order_check), prevents
+    duplicate submissions, verifies every broker result (never assumes
+    success), and records the full execution log.
+  * Emergency stop (kill switch): stops new trades immediately; optionally
+    closes open positions and cancels pending orders first.
+
+Automated/autonomous live trading is intentionally NOT provided:
+ENABLE_LIVE_TRADING must stay false (the app refuses to start otherwise).
+Live orders are only ever placed by an explicit user action.
 
 Phase 5 adds a complete paper-trading environment that uses LIVE market data
 but simulates all execution:
@@ -218,7 +228,12 @@ Phase 6 MetaTrader 5 integration via a mocked client (connection failure,
 reconnection, account/symbol/tick/historical/positions/orders mapping, invalid
 symbol, order validation for invalid volume/SL/TP, broker rejection, position
 synchronization, the read-only market-data adapter, account verification, and
-proof that all write operations remain disabled).
+proof that write operations require authorization); and the Phase 7 live
+execution system (independent risk-engine sizing + every hard limit + latched
+daily/weekly/drawdown halts + spread/news/data failsafes; the explicit,
+restart-safe authorization flow; and the execution coordinator's authorization/
+risk/validation/duplicate-prevention/never-assume-success pipeline and kill
+switch, all exercised with a mocked broker).
 
 (Full API/integration tests that need FastAPI/SQLAlchemy run once
 backend/requirements.txt is installed in a networked environment.)
@@ -340,12 +355,21 @@ Still:
 
 
 -------------------------------------------------------------------------------
-15. HOW TO DISABLE LIVE TRADING
+15. HOW TO DISABLE LIVE TRADING (and how it is kept safe)
 -------------------------------------------------------------------------------
-It is already disabled and cannot be enabled in Phase 1. The safeguards:
-  * ENABLE_LIVE_TRADING must be false; the backend refuses to start otherwise.
-  * TradingModeManager rejects any switch to LIVE_TRADING (HTTP 409).
-  * ExecutionEngine raises ExecutionDisabledError on every order operation.
+Live execution is OFF by default and cannot be enabled without deliberate,
+explicit steps. Layered safeguards:
+  * LIVE_EXECUTION_ENABLED defaults false — a backend precondition the frontend
+    cannot set on its own.
+  * The user must tick all six confirmations AND explicitly ARM ("ENABLE LIVE
+    TRADING"). The execution provider refuses all writes unless authorized.
+  * The independent risk engine can reject any order; the strategy engine
+    cannot bypass it.
+  * ENABLE_LIVE_TRADING must be false (no autonomous auto-execution); the app
+    refuses to start otherwise.
+  * A restart resets authorization to DISABLED (in-memory).
+To disable at any time: click Disarm, hit the EMERGENCY STOP (kill switch),
+POST /api/live/disable or /api/live/kill, or simply restart the backend.
 
 
 -------------------------------------------------------------------------------
@@ -362,15 +386,16 @@ It is already disabled and cannot be enabled in Phase 1. The safeguards:
 
 
 -------------------------------------------------------------------------------
-17. CURRENT LIMITATIONS (PHASE 6)
+17. CURRENT LIMITATIONS / NOTES (PHASE 7)
 -------------------------------------------------------------------------------
-  * MetaTrader 5 integration is READ-ONLY. There is NO order execution, and it
-    requires the MT5 terminal + MetaTrader5 package on the backend host (so it
-    cannot connect in a headless/Linux-only or offline environment).
-  * Paper trading remains fully simulated; no real-money execution exists.
-  * Interactive pages: Dashboard, Settings, Strategies, Strategy Builder,
-    Backtesting, Paper Trading and Data Connections. Live Trading arrives in a
-    later phase.
+  * Live execution requires the MT5 terminal + MetaTrader5 package on the
+    backend host (Windows/Wine) and a real/demo broker account; it cannot run
+    in a headless/Linux-only or offline environment.
+  * Live trading is USER-INITIATED only (POST /api/live/execute or the Live
+    Trading page). There is deliberately NO autonomous execution loop.
+  * ALWAYS validate on a DEMO account first. Real-money trading can lose money.
+  * All pages are interactive: Dashboard, Live Chart data, Strategies, Strategy
+    Builder, Backtesting, Paper Trading, Data Connections, Live Trading, Risk.
 
 
 -------------------------------------------------------------------------------

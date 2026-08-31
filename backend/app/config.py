@@ -131,15 +131,16 @@ class Settings:
         _placeholder_secret = "change-me-to-a-long-random-string"
         if self.is_production and (not self.secret_key or self.secret_key == _placeholder_secret):
             problems.append("SECRET_KEY must be set to a strong value in production.")
-        # Safety invariant: live trading/execution must not be enabled yet.
+        # Safety invariant: fully-autonomous live auto-trading is intentionally
+        # NOT enabled. ENABLE_LIVE_TRADING must remain false (the platform never
+        # auto-executes signals without a human). LIVE_EXECUTION_ENABLED is a
+        # legitimate advanced precondition for the manual, explicitly-authorized
+        # live-execution flow, so it is allowed to be true.
         if self.enable_live_trading:
             problems.append(
-                "ENABLE_LIVE_TRADING must be false; automated live trading is not implemented."
-            )
-        if self.live_execution_enabled:
-            problems.append(
-                "LIVE_EXECUTION_ENABLED must be false until Phase 7; MetaTrader "
-                "integration in Phase 6 is read-only and refuses all order writes."
+                "ENABLE_LIVE_TRADING must be false; the platform does not "
+                "auto-execute trades. Use the explicit live-execution "
+                "authorization flow instead (LIVE_EXECUTION_ENABLED)."
             )
         return problems
 

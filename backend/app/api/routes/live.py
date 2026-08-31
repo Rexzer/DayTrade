@@ -1,0 +1,100 @@
+"""Live-trading endpoints (Phase 7).
+
+Live execution is user-initiated and gated by the independent risk engine plus
+an explicit authorization (config flag + all confirmations + arm + no kill).
+There is NO autonomous execution. A restart disables live trading.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from backend.app.live import get_live_service
+
+router = APIRouter(prefix="/live", tags=["live"])
+
+
+@router.get("/status")
+def status() -> dict:
+    return get_live_service().status()
+
+
+class ConfirmRequest(BaseModel):
+    confirmations: dict[str, bool]
+
+
+@router.post("/confirm")
+def confirm(req: ConfirmRequest) -> dict:
+    return get_live_service().set_confirmations(req.confirmations)
+
+
+@router.post("/enable")
+def enable() -> dict:
+    """Arm live trading. Fails unless every requirement is met."""
+    result = get_live_service().enable()
+    if result.get("error"):
+        raise HTTPException(status_code=409, detail=result)
+    return result
+
+
+@router.post("/disable")
+def disable() -> dict:
+    return get_live_service().disable()
+
+
+class KillRequest(BaseModel):
+    cancel_pending: bool = False
+    close_positions: bool = False
+
+
+@router.post("/kill")
+def kill(req: KillRequest) -> dict:
+    """EMERGENCY STOP — always blocks new trades immediately."""
+    return get_live_service().kill(
+        cancel_pending=req.cancel_pending, close_positions=req.close_positions
+    )
+
+
+@router.post("/kill/clear")
+def clear_kill() -> dict:
+    return get_live_service().clear_kill()
+
+
+class RiskRequest(BaseModel):
+    risk_per_trade_pct: float | None = None
+    max_daily_loss_pct: float | None = None
+    max_weekly_loss_pct: float | None = None
+    max_drawdown_pct: float | None = None
+    max_open_positions: int | None = None
+    max_xauusd_positions: int | None = None
+    max_trades_per_day: int | None = None
+    max_consecutive_losses: int | None = None
+    max_lot_size: float | None = None
+    max_spread_points: float | None = None
+    news_blackout_before_min: float | None = None
+    news_blackout_after_min: float | None = None
+
+
+@router.post("/risk")
+def set_risk(req: RiskRequest) -> dict:
+    result = get_live_service().set_risk(req.model_dump(exclude_none=True))
+    if result.get("error"):
+        raise HTTPException(status_code=422, detail=result)
+    return result
+
+
+@router.post("/risk/reset")
+def reset_risk() -> dict:
+    return get_live_service().reset_risk_halts()
+
+
+@router.post("/execute")
+def execute() -> dict:
+    """USER-INITIATED single execution of the best current confirmed signal."""
+    return get_live_service().execute_current_signal()
+
+
+@router.get("/log")
+def log(limit: int = 100) -> dict:
+    return get_live_service().execution_log(limit)

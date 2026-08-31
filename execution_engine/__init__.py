@@ -1,15 +1,27 @@
 """Execution engine.
 
-Live/automated ORDER EXECUTION is hard-disabled until Phase 7 — every write
-operation raises. Phase 6 adds MetaTrader 5 connectivity for READS only:
-account, symbol specs, ticks, historical data, positions, orders and trade
-history, plus dry-run order validation and account verification.
+Order execution flows ONLY through the mandatory pipeline:
+    Strategy/Signal -> Authorization -> Risk Engine -> Order Validation ->
+    Execution (MetaTrader 5) -> result verification -> log.
 
-The base :class:`ExecutionEngine` remains a fail-closed placeholder; the
-:class:`MT5ExecutionProvider` implements the read surface behind the
-:class:`ExecutionProvider` interface and refuses all writes.
+Writes are refused unless a :class:`LiveAuthorization` (explicit config flag +
+all user confirmations + explicit arm + no kill switch) authorizes them; the
+authorization is in-memory so a restart disables live trading. The
+:class:`ExecutionCoordinator` is the only path to a live order and cannot
+bypass the independent risk engine.
 """
 
+from execution_engine.authorization import (
+    CONFIRMATION_LABELS,
+    REQUIRED_CONFIRMATIONS,
+    AuthorizationError,
+    LiveAuthorization,
+)
+from execution_engine.coordinator import (
+    ExecutionCoordinator,
+    ExecutionLog,
+    ExecutionOutcome,
+)
 from execution_engine.engine import (
     ExecutionDisabledError,
     ExecutionEngine,
@@ -57,4 +69,11 @@ __all__ = [
     "PositionSynchronizer",
     "SyncDiff",
     "build_account_verification",
+    "LiveAuthorization",
+    "AuthorizationError",
+    "REQUIRED_CONFIRMATIONS",
+    "CONFIRMATION_LABELS",
+    "ExecutionCoordinator",
+    "ExecutionLog",
+    "ExecutionOutcome",
 ]
