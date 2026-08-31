@@ -69,6 +69,17 @@ full chain; authorized MT5 order send/modify/close; and a prominent emergency
 stop. Live execution is USER-INITIATED only — the platform never auto-executes
 trades, and a restart disables live trading.
 
+## Phase 8 — AI Assistant, Analytics & Final Polish ✅ (this deliverable)
+A data-grounded AI assistant (answers only from platform data; "INSUFFICIENT
+DATA" otherwise; never invents), advanced performance analytics (breakdowns by
+strategy/timeframe/session/direction/regime/day/month + strategy comparison),
+trade-journal intelligence (neutral behavioural observations), signal-transition
+history, configurable notifications (channels x event types), and a
+system-health dashboard. Plus a final security review and the full docs suite
+(ARCHITECTURE / STRATEGIES / RISK_MANAGEMENT / MT5_SETUP / BACKTESTING / API /
+SECURITY). The platform never guarantees profits and never presents a score as
+a probability of profit.
+
 ## Phase 6 — Live Execution
 Live order execution, position management, hard risk enforcement, kill switch
 and execution monitoring — behind explicit multi-step user confirmation.

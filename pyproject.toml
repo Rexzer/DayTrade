@@ -22,6 +22,9 @@ packages = [
     "execution_engine",
     "backtesting",
     "paper_trading",
+    "assistant",
+    "analytics",
+    "notifications",
 ]
 
 [tool.pytest.ini_options]

@@ -1,8 +1,36 @@
 # Architecture — XAUUSD Trading Platform
 
-> Phase 7 (live execution + independent risk engine). Live execution is
-> user-initiated only, gated by an explicit authorization and the authoritative
-> risk engine. The platform never auto-executes trades.
+> Phase 8 (final). AI assistant, advanced analytics, journal intelligence,
+> notifications and system health on top of the full 7-phase platform. Live
+> execution remains user-initiated only and disabled on restart.
+
+## Phase 8 addendum — AI assistant, analytics, ops
+
+Pure packages (dependency-free, fully tested):
+- `assistant/` — `TradingAssistant.ask(question, AssistantContext)` returns a
+  grounded, explainable answer using ONLY the supplied data. Intent-based; never
+  invents; replies "INSUFFICIENT DATA" when data is missing.
+- `analytics/` — `performance` (metrics + breakdowns by strategy/timeframe/
+  session/direction/regime/day/month), `journal_intelligence` (neutral
+  behavioural observations), `comparison` (backtest-OOS/paper/live table),
+  `signal_history` (level transitions with reasons), `health` (component ->
+  healthy/warning/failure aggregation).
+- `notifications/` — `NotificationConfig` (channels x event types) +
+  `NotificationDispatcher` (records intent, pluggable channel adapters).
+
+Backend services wire these to the running platform and expose:
+`/api/assistant/*`, `/api/analytics/*`, `/api/notifications/*`,
+`/api/system/health`. Frontend adds the AI Assistant, Performance Analytics and
+Trade Journal pages, a System Health card, and Notifications preferences.
+
+Final principle: this is a REAL-TIME ANALYSIS + STRATEGY TESTING + RISK
+MANAGEMENT + TRADE EXECUTION + TRADE JOURNAL + AI EXPLANATION platform — not a
+predictor. It never guarantees profits and never presents a score as a
+probability of profit.
+
+---
+
+## Phase 7 addendum — Live execution + independent risk engine
 
 ## Phase 7 addendum — Live execution + independent risk engine
 

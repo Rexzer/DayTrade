@@ -4,6 +4,31 @@ import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/config";
 import { MarketStatus, apiGet } from "@/lib/api";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function SystemHealthCard() {
+  const [health, setHealth] = useState<any>(null);
+  useEffect(() => {
+    const load = () => apiGet<any>("/system/health").then((r) => setHealth(r.data));
+    load();
+    const id = setInterval(load, 6000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <h3>System Health</h3>
+        <span>{health?.overall_emoji} {(health?.overall ?? "unknown").toUpperCase()}</span>
+      </div>
+      {(health?.components ?? []).map((c: any) => (
+        <div key={c.name} className="row" style={{ fontSize: 13 }}>
+          <span>{c.emoji} {c.name}</span>
+          <span className="muted">{c.detail}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface Mt5Status {
   provider: string;
   connected: boolean;
@@ -71,6 +96,8 @@ export default function ConnectionsPage() {
   return (
     <div>
       <h2 style={{ marginBottom: 16 }}>Data Connections</h2>
+
+      <SystemHealthCard />
 
       <div className="notice warn">
         MetaTrader 5 integration is READ-ONLY. Order execution is disabled —
