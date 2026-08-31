@@ -37,8 +37,8 @@ export function ModeSelector({ modes }: { modes: ModesResponse | null }) {
         })}
       </div>
       <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-        Analysis Only is active. Paper Trading unlocks in Phase 4 and Live
-        Trading in Phase 6 (behind explicit confirmations).
+        Analysis Only and Paper Trading (simulated) are available. Live Trading
+        remains locked until a later phase (behind explicit confirmations).
       </div>
     </div>
   );

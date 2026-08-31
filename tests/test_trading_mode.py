@@ -1,4 +1,8 @@
-"""Safety-critical tests: LIVE TRADING CANNOT BE ACTIVATED in Phase 1."""
+"""Safety-critical tests: LIVE TRADING CANNOT BE ACTIVATED.
+
+Paper trading is enabled from Phase 5 (simulated execution on live data — no
+real orders). Live trading remains hard-locked.
+"""
 
 import pytest
 
@@ -21,9 +25,9 @@ def test_analysis_only_is_enabled():
     assert mgr.is_enabled(TradingMode.ANALYSIS_ONLY) is True
 
 
-def test_paper_and_live_are_locked():
+def test_paper_enabled_live_locked():
     mgr = TradingModeManager()
-    assert mgr.is_enabled(TradingMode.PAPER_TRADING) is False
+    assert mgr.is_enabled(TradingMode.PAPER_TRADING) is True
     assert mgr.is_enabled(TradingMode.LIVE_TRADING) is False
 
 
@@ -36,11 +40,12 @@ def test_cannot_switch_to_live_trading():
     assert mgr.is_live_trading_active() is False
 
 
-def test_cannot_switch_to_paper_trading():
+def test_can_switch_to_paper_trading():
     mgr = TradingModeManager()
-    with pytest.raises(ModeTransitionError):
-        mgr.set_mode(TradingMode.PAPER_TRADING)
-    assert mgr.current is TradingMode.ANALYSIS_ONLY
+    assert mgr.set_mode(TradingMode.PAPER_TRADING) is TradingMode.PAPER_TRADING
+    assert mgr.current is TradingMode.PAPER_TRADING
+    # Paper trading is NOT live trading.
+    assert mgr.is_live_trading_active() is False
 
 
 def test_setting_analysis_only_is_idempotent():
@@ -53,9 +58,9 @@ def test_status_dicts_report_locks_with_reasons():
     by_mode = {d["mode"]: d for d in mgr.status_dicts()}
     assert by_mode["analysis_only"]["availability"] == "enabled"
     assert by_mode["analysis_only"]["active"] is True
-    assert by_mode["paper_trading"]["availability"] == "locked"
+    assert by_mode["paper_trading"]["availability"] == "enabled"
     assert by_mode["live_trading"]["availability"] == "locked"
-    # Locked modes must explain why.
+    # The locked live mode must explain why.
     assert by_mode["live_trading"]["reason"]
 
 

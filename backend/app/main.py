@@ -20,6 +20,7 @@ from backend.app.api.routes import (
     market,
     mode,
     news,
+    paper,
     strategies,
 )
 from backend.app.api.routes import (
@@ -82,6 +83,16 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # noqa: BLE001 - DB optional; builtins still work
         logger.debug("Custom strategy load skipped", extra={"context": {"error": str(exc)}})
 
+    # Wire the paper-trading engine to the market feed (idempotent). It only
+    # AUTO-trades once explicitly started via the API; wiring just lets it
+    # track live prices for equity/positions.
+    try:
+        from backend.app.paper_trading import get_paper_service
+
+        get_paper_service().wire()
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Paper service wiring skipped", extra={"context": {"error": str(exc)}})
+
     # Start the real-time market-data pipeline (no-op if provider is "none").
     market = get_market_service()
     await market.start()
@@ -120,6 +131,7 @@ def create_app() -> FastAPI:
         account.router,
         strategies.router,
         backtest.router,
+        paper.router,
         news.router,
         settings_route.router,
     ]

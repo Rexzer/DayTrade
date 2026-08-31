@@ -40,9 +40,13 @@ OOS), parameter-sensitivity (fragility flag), Monte Carlo (drawdown ranges),
 and a PASS/WARNING/FAILED strategy report. Purpose is robustness assessment —
 never a profitability guarantee. **No trade execution.**
 
-## Phase 4 — Paper Trading
-Virtual account, simulated execution against live data, trade journal, and
-performance tracking. Paper-trading mode unlocks.
+## Phase 5 — Paper Trading ✅ (this deliverable)
+Virtual account with simulated execution on LIVE data: market/limit/stop
+orders, stop-loss/take-profit, partial exits and trailing stops with realistic
+(adverse) fills; risk limits (per-trade sizing, max positions, daily-loss
+halt); explicit SIGNAL-vs-TRADE distinction; full journal; and per-strategy
+performance comparison. Paper-trading mode is unlocked (live stays locked).
+**No real orders are possible — every fill is simulated.**
 
 ## Phase 5 — MetaTrader
 MT5 account connection, account info, positions, orders and trade
