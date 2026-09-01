@@ -96,6 +96,7 @@ class LiveTradingService:
             "dry_run": self.coordinator.dry_run,
             "auto_execute": self.auto.enabled and self._auto_running,
             "auto_trade": self.auto_status(),
+            "disabled_strategies": self.disabled_strategy_keys(),
             "note": (
                 "Live execution is gated by the independent risk engine and "
                 "requires explicit authorization. Auto Trade (when ON) runs the "
@@ -234,9 +235,21 @@ class LiveTradingService:
         )
         if not result.signals_allowed:
             return {"executed": False, "reason": result.reason}
+        # Skip strategies the decay monitor has auto-disabled (edge decayed).
+        disabled = set(self.disabled_strategy_keys())
+        if strategy_key and strategy_key in disabled:
+            return {
+                "executed": False,
+                "reason": (
+                    f"Strategy '{strategy_key}' is auto-disabled due to recent "
+                    f"performance decay; not trading it."
+                ),
+            }
         candidates = result.signals
         if strategy_key:
             candidates = [s for s in candidates if s.get("strategy_key") == strategy_key]
+        else:
+            candidates = [s for s in candidates if s.get("strategy_key") not in disabled]
         best = next((s for s in candidates if s.get("level", 0) >= 3), None)
         if best is None:
             scope = f" for strategy '{strategy_key}'" if strategy_key else ""
@@ -433,6 +446,34 @@ class LiveTradingService:
             get_store().save_risk_state(self.risk.state.to_dict())
         except Exception as exc:  # noqa: BLE001 - persistence must never block trading
             logger.debug("risk-state persist skipped", extra={"context": {"error": str(exc)}})
+
+    # ------------------------------------------------------------- decay monitor
+    def strategy_health(self, limit: int = 500) -> dict:
+        """Per-strategy health from recent realized trades (decay monitoring).
+
+        Strategies whose edge has decayed are flagged ``degraded`` and are
+        automatically skipped by live execution / Auto Trade until they recover
+        or are re-validated. Never judges on a tiny sample.
+        """
+        try:
+            from analytics import monitor_strategies
+            from backend.app.persistence import get_store
+
+            # recent_trades is newest-first; the monitor needs chronological
+            # order so trailing losing streaks and the recency window are right.
+            trades = list(reversed(get_store().recent_trades(limit)))
+            return {"strategies": monitor_strategies(trades)}
+        except Exception as exc:  # noqa: BLE001
+            return {"error": str(exc), "strategies": {}}
+
+    def disabled_strategy_keys(self) -> list[str]:
+        """Strategy keys currently auto-disabled by the decay monitor."""
+        try:
+            from analytics import disabled_keys
+
+            return disabled_keys(self.strategy_health().get("strategies", {}))
+        except Exception:  # noqa: BLE001
+            return []
 
     # ------------------------------------------------------------- auto trade
     async def set_auto_trade(

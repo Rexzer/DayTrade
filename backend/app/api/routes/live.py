@@ -106,6 +106,17 @@ def execute(_op: str = Depends(require_operator)) -> dict:
     return get_live_service().execute_current_signal()
 
 
+@router.get("/health")
+def strategy_health(limit: int = 500) -> dict:
+    """Per-strategy decay monitoring. Degraded strategies are auto-skipped.
+
+    A strategy is only auto-disabled on a meaningful sample with genuinely poor
+    expectancy / profit factor or an abnormal losing streak — a low win rate
+    alone is just a 'watch'.
+    """
+    return get_live_service().strategy_health(limit)
+
+
 @router.get("/auto/intervals")
 def auto_intervals() -> dict:
     """Selectable scan intervals + the recommended interval per strategy.
