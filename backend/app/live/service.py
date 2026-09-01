@@ -66,6 +66,12 @@ class LiveTradingService:
         self._auto_running = False
         self._last_scan_epoch: float | None = None
         self._last_auto_result: dict | None = None
+        # False until the first broker sync adopts the positions that already
+        # existed at (re)start, so leftover trades aren't misreported as new.
+        self._reconciled = False
+        # Restore latched halts + running counters so a crash/redeploy cannot
+        # silently reset a bad day's loss limits.
+        self._load_risk_state()
 
     # ------------------------------------------------------------- status
     def status(self) -> dict:
@@ -166,6 +172,7 @@ class LiveTradingService:
 
     def reset_risk_halts(self) -> dict:
         self.risk.manual_reset()
+        self._persist_risk_state()
         return {"risk_state": self.risk.state.to_dict()}
 
     # ------------------------------------------------------------- execution
@@ -236,6 +243,10 @@ class LiveTradingService:
             return {"executed": False, "reason": f"No confirmed setup to execute{scope}."}
         outcome = self.coordinator.execute_signal(best, ctx, spec)
         self._persist(best, outcome)
+        if outcome.executed:
+            # The coordinator bumped trades_today; persist so the count (and any
+            # limit it trips) survives a restart.
+            self._persist_risk_state()
         return outcome.to_dict()
 
     def _persist(self, signal: dict, outcome) -> None:
@@ -318,9 +329,30 @@ class LiveTradingService:
         except BrokerConnectionError as exc:
             return {"synced": False, "reason": str(exc)}
 
+        # First sync after (re)start: ADOPT the positions that already existed
+        # as the baseline instead of reporting them as brand-new opens. This is
+        # startup reconciliation — leftover/manual positions are accounted for,
+        # and the risk engine's equity peak is (re)seeded from the account.
+        if not self._reconciled:
+            self._pos_sync.diff(positions)  # seed baseline silently
+            self._reconciled = True
+            equity = self._broker_equity()
+            if equity is not None:
+                self.risk.roll_periods(_time.time(), equity)
+                self.risk.update_equity(equity)
+                self._persist_risk_state()
+            self.coordinator.log.add(
+                "reconcile",
+                True,
+                f"Startup reconciliation: adopted {len(positions)} open position(s).",
+                {"open_positions": len(positions), "equity": equity},
+            )
+            return {"synced": True, "reconciled": True, "adopted": len(positions)}
+
         diff = self._pos_sync.diff(positions)
         if diff.closed:
             self._persist_closed(diff.closed)
+            self._record_closed_pnl(diff.closed)
         for pos in diff.opened:
             self.coordinator.log.add(
                 "position_synced",
@@ -337,6 +369,32 @@ class LiveTradingService:
             )
         return {"synced": True, **diff.to_dict()}
 
+    def _broker_equity(self) -> float | None:
+        """Best-effort current account equity from the broker, or None."""
+        try:
+            acc = get_mt5_service().provider.get_account_info()
+            return float(acc.equity or 0.0)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _record_closed_pnl(self, closed_positions) -> None:
+        """Feed realized P&L from closed positions into the risk engine.
+
+        This is what makes the daily/weekly loss limits actually track live
+        results (previously nothing called ``record_trade_closed`` in the live
+        path). Persists the updated risk state so the halts survive a restart.
+        """
+        equity = self._broker_equity()
+        # If the account read failed, fall back to the known peak equity so we
+        # don't fabricate a ~100% drawdown (which would falsely trip the halt).
+        safe_equity = equity if equity is not None else self.risk.state.peak_equity
+        for pos in closed_positions:
+            pnl = getattr(pos, "profit", None)
+            if pnl is None:
+                continue
+            self.risk.record_trade_closed(float(pnl), safe_equity)
+        self._persist_risk_state()
+
     def _persist_closed(self, closed_positions) -> None:
         try:
             from backend.app.persistence import get_store
@@ -350,6 +408,31 @@ class LiveTradingService:
             logger.debug(
                 "closed-position persistence skipped", extra={"context": {"error": str(exc)}}
             )
+
+    # ------------------------------------------------------------- risk state
+    def _load_risk_state(self) -> None:
+        """Restore persisted risk state on startup (best-effort)."""
+        try:
+            from backend.app.persistence import get_store
+
+            saved = get_store().load_risk_state()
+            if saved:
+                self.risk.restore_state(saved)
+                logger.info(
+                    "Restored risk state",
+                    extra={"context": {"state": self.risk.state.to_dict()}},
+                )
+        except Exception as exc:  # noqa: BLE001 - never block startup
+            logger.debug("risk-state restore skipped", extra={"context": {"error": str(exc)}})
+
+    def _persist_risk_state(self) -> None:
+        """Durably save the current risk state (best-effort)."""
+        try:
+            from backend.app.persistence import get_store
+
+            get_store().save_risk_state(self.risk.state.to_dict())
+        except Exception as exc:  # noqa: BLE001 - persistence must never block trading
+            logger.debug("risk-state persist skipped", extra={"context": {"error": str(exc)}})
 
     # ------------------------------------------------------------- auto trade
     async def set_auto_trade(

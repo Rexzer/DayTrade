@@ -14,7 +14,15 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.app.db.models import Account, Order, Signal, Strategy, Trade, User
+from backend.app.db.models import (
+    Account,
+    Order,
+    RiskStateSnapshot,
+    Signal,
+    Strategy,
+    Trade,
+    User,
+)
 from backend.app.persistence.store import (
     StoredOrder,
     StoredSignal,
@@ -193,5 +201,32 @@ class SqlTradeStore(TradeStore):
                 }
                 for r in rows
             ]
+        finally:
+            db.close()
+
+    # --- risk state ----------------------------------------------------------
+    def save_risk_state(self, state: dict) -> None:
+        db = self._session_factory()
+        try:
+            row = db.get(RiskStateSnapshot, 1)
+            payload = json.dumps(state or {})
+            if row is None:
+                db.add(RiskStateSnapshot(id=1, payload=payload))
+            else:
+                row.payload = payload
+            db.commit()
+        finally:
+            db.close()
+
+    def load_risk_state(self) -> dict | None:
+        db = self._session_factory()
+        try:
+            row = db.get(RiskStateSnapshot, 1)
+            if row is None or not row.payload:
+                return None
+            try:
+                return json.loads(row.payload)
+            except (ValueError, TypeError):
+                return None
         finally:
             db.close()

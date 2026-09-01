@@ -123,6 +123,33 @@ class RiskState:
             "current_drawdown_pct": round(self.current_drawdown_pct, 4),
         }
 
+    @classmethod
+    def from_dict(cls, data: dict | None) -> RiskState:
+        """Rebuild a RiskState from a persisted dict (tolerant of missing keys).
+
+        Unknown keys are ignored and missing keys keep their defaults, so the
+        schema can evolve without breaking restore.
+        """
+        state = cls()
+        if not data:
+            return state
+        for f in (
+            "day_key",
+            "week_key",
+            "peak_equity",
+            "realized_daily_pnl",
+            "realized_weekly_pnl",
+            "trades_today",
+            "consecutive_losses",
+            "daily_loss_halt",
+            "weekly_loss_halt",
+            "drawdown_halt",
+            "current_drawdown_pct",
+        ):
+            if f in data and data[f] is not None:
+                setattr(state, f, data[f])
+        return state
+
 
 _STALE_DATA = {"stale", "disconnected", "invalid"}
 _XAU = "XAUUSD"
@@ -137,6 +164,15 @@ class LiveRiskEngine:
 
     def update_settings(self, settings: RiskSettings) -> None:
         self.settings = settings
+
+    def restore_state(self, data: dict | None) -> None:
+        """Restore persisted risk state after a restart (crash/deploy safety).
+
+        Latched halts and running loss counters survive the restart so a bad
+        day cannot be silently reset by bouncing the process. Period rollover
+        (new day/week) is still handled normally on the next ``evaluate``.
+        """
+        self.state = RiskState.from_dict(data)
 
     # ----------------------------------------------------------- accounting
     def roll_periods(self, now_epoch: float, equity: float) -> None:
