@@ -25,6 +25,7 @@ packages = [
     "assistant",
     "analytics",
     "notifications",
+    "strategy_lab",
 ]
 
 [tool.pytest.ini_options]

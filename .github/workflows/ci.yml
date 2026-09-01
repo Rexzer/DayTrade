@@ -65,7 +65,7 @@ jobs:
           pip install -r backend/requirements.txt -r requirements-dev.txt
 
       - name: Byte-compile the whole tree
-        run: python -m compileall -q backend execution_engine risk_engine strategy_engine market_data backtesting paper_trading analytics assistant notifications
+        run: python -m compileall -q backend execution_engine risk_engine strategy_engine market_data backtesting paper_trading analytics assistant notifications strategy_lab
 
       - name: Import the FastAPI app (no server start)
         # Catches import-time errors in the web layer that the pure tests miss.
