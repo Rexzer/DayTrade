@@ -148,3 +148,49 @@ def test_sizing_below_broker_minimum_is_rejected():
     dec = _engine(risk_per_trade_pct=0.25).evaluate(tiny, _ctx(price=2400.0), SPEC)
     assert not dec.approved
     assert any("size" in r.lower() or "minimum" in r.lower() for r in dec.reasons)
+
+
+# ---------------------------------------------------------------- persistence
+
+
+def test_risk_state_roundtrips_through_dict():
+    from risk_engine.live_risk import RiskState
+
+    eng = _engine(max_daily_loss_pct=2.0)
+    eng.update_equity(10_000.0)
+    eng.record_trade_closed(-250.0, 9_750.0)  # -2.5% > 2% limit -> trips halt
+    eng.record_trade_opened()
+    assert eng.state.daily_loss_halt is True
+
+    snapshot = eng.state.to_dict()
+    restored = RiskState.from_dict(snapshot)
+    assert restored.daily_loss_halt is True
+    assert restored.realized_daily_pnl == snapshot["realized_daily_pnl"]
+    assert restored.trades_today == eng.state.trades_today
+    assert restored.consecutive_losses == eng.state.consecutive_losses
+
+
+def test_from_dict_tolerates_missing_and_unknown_keys():
+    from risk_engine.live_risk import RiskState
+
+    s = RiskState.from_dict({"daily_loss_halt": True, "totally_unknown": 42})
+    assert s.daily_loss_halt is True
+    assert s.trades_today == 0  # default preserved
+    # None input yields clean defaults.
+    assert RiskState.from_dict(None).daily_loss_halt is False
+
+
+def test_restore_state_survives_restart_and_still_blocks():
+    """A restored daily-loss halt must keep blocking new trades post-restart."""
+    eng = _engine(max_daily_loss_pct=2.0)
+    eng.update_equity(10_000.0)
+    eng.record_trade_closed(-250.0, 9_750.0)
+    saved = eng.state.to_dict()
+
+    # Simulate a process restart: brand-new engine, then restore.
+    fresh = _engine(max_daily_loss_pct=2.0)
+    assert fresh.state.daily_loss_halt is False  # fresh starts clean
+    fresh.restore_state(saved)
+    assert fresh.state.daily_loss_halt is True
+    # And the authoritative gate still rejects.
+    assert not fresh.evaluate(TRADE, _ctx(equity=9_750.0), SPEC).approved

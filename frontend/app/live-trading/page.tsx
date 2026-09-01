@@ -34,7 +34,18 @@ interface LiveStatus {
   dry_run: boolean;
   auto_execute: boolean;
   auto_trade: AutoTradeStatus;
+  disabled_strategies: string[];
   note: string;
+}
+
+interface StrategyHealthEntry {
+  strategy_key: string;
+  status: string; // healthy | watch | degraded | insufficient_data
+  sample_size: number;
+  consecutive_losses: number;
+  should_disable: boolean;
+  reasons: string[];
+  metrics: { win_rate?: number; expectancy?: number; profit_factor?: number | null };
 }
 
 interface LogEntry {
@@ -71,13 +82,17 @@ export default function LiveTradingPage() {
   const [selStrategy, setSelStrategy] = useState<string>(""); // "" = best across all
   const [selInterval, setSelInterval] = useState<number>(900); // default 15m
 
+  const [health, setHealth] = useState<Record<string, StrategyHealthEntry>>({});
+
   async function refresh() {
-    const [s, l] = await Promise.all([
+    const [s, l, h] = await Promise.all([
       apiGet<LiveStatus>("/live/status"),
       apiGet<{ log: LogEntry[] }>("/live/log?limit=40"),
+      apiGet<{ strategies: Record<string, StrategyHealthEntry> }>("/live/health"),
     ]);
     if (s.data) setStatus(s.data);
     if (l.data) setLog(l.data.log);
+    if (h.data?.strategies) setHealth(h.data.strategies);
   }
 
   useEffect(() => {
@@ -257,11 +272,15 @@ export default function LiveTradingPage() {
               }}
             >
               <option value="">Best confirmed setup (all strategies)</option>
-              {recommendations.map((r) => (
-                <option key={r.strategy_key} value={r.strategy_key}>
-                  {r.name}
-                </option>
-              ))}
+              {recommendations.map((r) => {
+                const disabled = status?.disabled_strategies?.includes(r.strategy_key);
+                return (
+                  <option key={r.strategy_key} value={r.strategy_key}>
+                    {r.name}
+                    {disabled ? "  ⚠ auto-disabled (decay)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -425,6 +444,49 @@ export default function LiveTradingPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Strategy health / decay monitor */}
+      <div className="section-title">Strategy Health (decay monitor)</div>
+      <div className="card">
+        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+          Rolling performance per strategy. A strategy is auto-skipped by live
+          trading only when its edge genuinely decays (poor expectancy/profit
+          factor or an abnormal losing streak) on a meaningful sample — a low
+          win rate alone is just a &quot;watch&quot;. Judged on realized trades
+          the platform has recorded.
+        </div>
+        {Object.keys(health).length === 0 && (
+          <div className="muted">No recorded trades yet to evaluate.</div>
+        )}
+        {Object.entries(health).map(([key, h]) => {
+          const color =
+            h.status === "degraded"
+              ? "red"
+              : h.status === "watch"
+                ? "gold"
+                : h.status === "healthy"
+                  ? "green"
+                  : "";
+          return (
+            <div key={key} className="row" style={{ fontSize: 12, alignItems: "flex-start" }}>
+              <span className={`badge ${color}`} style={{ minWidth: 96 }}>
+                {h.status}
+              </span>
+              <span style={{ flex: 1, textAlign: "left", paddingLeft: 10 }}>
+                <b>{key}</b> · {h.sample_size} trades · win{" "}
+                {h.metrics?.win_rate != null ? `${Math.round(h.metrics.win_rate * 100)}%` : "—"} ·
+                expectancy {h.metrics?.expectancy ?? "—"} · PF{" "}
+                {h.metrics?.profit_factor ?? "—"} · streak {h.consecutive_losses}
+                {h.reasons?.length > 0 && (
+                  <div className="muted" style={{ marginTop: 2 }}>
+                    {h.reasons.join(" ")}
+                  </div>
+                )}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Execution log */}

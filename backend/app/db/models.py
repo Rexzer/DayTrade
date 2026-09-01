@@ -283,6 +283,21 @@ class MarketCandle(Base, TimestampMixin):
     )
 
 
+class RiskStateSnapshot(Base, TimestampMixin):
+    """Latest live risk-engine state (single row), persisted for restart safety.
+
+    Latched halts (daily/weekly loss, drawdown) and running counters survive a
+    crash or redeploy so a bad day cannot be silently reset by bouncing the
+    process. The full state is stored as JSON in ``payload`` to stay schema-
+    tolerant; a fixed ``id=1`` row is upserted.
+    """
+
+    __tablename__ = "risk_state_snapshot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    payload: Mapped[str] = mapped_column(Text, nullable=False)  # JSON of RiskState.to_dict()
+
+
 class UserStrategy(Base, TimestampMixin):
     """A user-created (rule-based) strategy definition (Phase 3).
 

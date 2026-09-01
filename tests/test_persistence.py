@@ -142,3 +142,25 @@ def test_position_synchronizer_close_yields_persistable_trade():
     assert rows[0]["pnl"] == 12.0
     assert rows[0]["exit_price"] == 2412.0
     assert rows[0]["mode"] == "live"
+
+
+# ---------------------------------------------------------------- risk state
+
+
+def test_risk_state_save_and_load_roundtrip():
+    store = InMemoryTradeStore()
+    assert store.load_risk_state() is None  # nothing persisted yet
+    state = {"daily_loss_halt": True, "trades_today": 3, "realized_daily_pnl": -120.5}
+    store.save_risk_state(state)
+    loaded = store.load_risk_state()
+    assert loaded == state
+    # Returned copy is independent (mutating it must not corrupt the store).
+    loaded["trades_today"] = 999
+    assert store.load_risk_state()["trades_today"] == 3
+
+
+def test_risk_state_overwrite_keeps_latest():
+    store = InMemoryTradeStore()
+    store.save_risk_state({"trades_today": 1})
+    store.save_risk_state({"trades_today": 2})
+    assert store.load_risk_state()["trades_today"] == 2

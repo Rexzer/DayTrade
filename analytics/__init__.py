@@ -10,6 +10,13 @@ guarantee of future performance.
 from analytics.comparison import build_strategy_comparison
 from analytics.health import HealthStatus, SystemHealth
 from analytics.journal_intelligence import JournalAnalyzer, Observation
+from analytics.lifecycle import (
+    HealthThresholds,
+    StrategyHealth,
+    disabled_keys,
+    evaluate_health,
+    monitor_strategies,
+)
 from analytics.performance import breakdown, metrics, standard_breakdowns
 from analytics.signal_history import SignalHistory
 
@@ -23,4 +30,9 @@ __all__ = [
     "SignalHistory",
     "HealthStatus",
     "SystemHealth",
+    "HealthThresholds",
+    "StrategyHealth",
+    "evaluate_health",
+    "monitor_strategies",
+    "disabled_keys",
 ]

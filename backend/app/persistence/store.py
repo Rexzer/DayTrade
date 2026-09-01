@@ -121,6 +121,15 @@ class TradeStore(ABC):
     @abstractmethod
     def recent_trades(self, limit: int = 100) -> list[dict]: ...
 
+    # --- risk state (single latest snapshot) --------------------------------
+    @abstractmethod
+    def save_risk_state(self, state: dict) -> None:
+        """Persist the latest risk-engine state (halts, counters, equity)."""
+
+    @abstractmethod
+    def load_risk_state(self) -> dict | None:
+        """Return the last persisted risk-engine state, or None if never saved."""
+
 
 class InMemoryTradeStore(TradeStore):
     """Non-persistent store (tests + no-DB fallback). Auto-increments ids."""
@@ -129,6 +138,7 @@ class InMemoryTradeStore(TradeStore):
         self._signals: list[StoredSignal] = []
         self._orders: list[StoredOrder] = []
         self._trades: list[StoredTrade] = []
+        self._risk_state: dict | None = None
         self._seq = 0
 
     def _next_id(self) -> int:
@@ -158,3 +168,9 @@ class InMemoryTradeStore(TradeStore):
 
     def recent_trades(self, limit: int = 100) -> list[dict]:
         return [t.to_dict() for t in self._trades[-limit:][::-1]]
+
+    def save_risk_state(self, state: dict) -> None:
+        self._risk_state = dict(state) if state is not None else None
+
+    def load_risk_state(self) -> dict | None:
+        return dict(self._risk_state) if self._risk_state is not None else None
